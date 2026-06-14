@@ -1,0 +1,179 @@
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --panel-2: #1d212b;
+  --border: #2a2f3a;
+  --text: #e6e8ec;
+  --muted: #8b93a1;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 -apple-system, "SF Pro Text", "PingFang SC", "Segoe UI", Roboto, sans-serif;
+}
+
+.app { max-width: 1100px; margin: 0 auto; padding: 20px; }
+
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 18px;
+}
+.brand { font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }
+.brand .sub { margin-left: 10px; font-size: 12px; font-weight: 400; color: var(--muted); }
+
+.stats { display: flex; align-items: center; gap: 12px; }
+.stat { font-size: 13px; color: var(--muted); }
+.stat.need { color: #f59e0b; font-weight: 600; }
+.conn { font-size: 12px; }
+.conn.on { color: #22c55e; }
+.conn.off { color: #ef4444; }
+
+.empty {
+  margin-top: 80px; text-align: center; color: var(--muted); font-size: 15px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid #6b7280;
+  border-radius: 10px;
+  padding: 12px 14px;
+  transition: background 0.15s;
+}
+.card:hover { background: var(--panel-2); }
+
+.card-top { display: flex; align-items: center; gap: 8px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.dot.pulse { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.status { font-size: 13px; font-weight: 600; }
+.kind {
+  font-size: 10px; padding: 1px 6px; border-radius: 6px;
+  border: 1px solid var(--border); color: var(--muted);
+}
+.kind-background { color: #a78bfa; border-color: #5b4b8a; }
+.managed {
+  font-size: 10px; color: #22c55e; margin-left: auto;
+  border: 1px solid #2c5238; border-radius: 6px; padding: 1px 6px;
+}
+.monitor-only {
+  font-size: 10px; color: var(--muted); margin-left: auto;
+  border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px;
+}
+
+.project {
+  margin: 10px 0 8px; font-size: 16px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.card-bottom {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12px; color: var(--muted);
+}
+.tool { color: #cbd5e1; }
+.age { margin-left: auto; }
+.sid { font-family: ui-monospace, "SF Mono", Menlo, monospace; opacity: 0.6; }
+
+.card.clickable { cursor: pointer; }
+.card.open { outline: 1px solid #3b82f6; }
+
+/* 按钮 */
+.btn {
+  font-size: 13px; padding: 5px 12px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
+}
+.btn:hover { background: #232834; }
+.btn.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+.btn.primary:hover { background: #1d4ed8; }
+.btn.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn.ghost { background: transparent; }
+
+/* 新建会话弹窗 */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55);
+  display: flex; align-items: center; justify-content: center; z-index: 50;
+}
+.modal {
+  width: 460px; max-width: 92vw; background: var(--panel);
+  border: 1px solid var(--border); border-radius: 14px; padding: 22px;
+}
+.modal h3 { margin: 0 0 16px; font-size: 17px; }
+.modal-hint {
+  margin: -8px 0 16px; font-size: 12px; line-height: 1.5;
+  color: #fcd34d; background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 8px 10px;
+}
+.modal-hint b { color: #fde68a; }
+.modal label {
+  display: block; font-size: 12px; color: var(--muted); margin-bottom: 14px;
+}
+.modal input, .modal select {
+  display: block; width: 100%; margin-top: 6px; padding: 9px 11px;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; font-size: 14px;
+}
+.modal input:focus, .modal select:focus { outline: none; border-color: #2563eb; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: -8px 0 14px; }
+.chip {
+  font-size: 11px; padding: 3px 9px; border-radius: 14px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--panel-2); color: var(--muted);
+}
+.chip:hover { color: var(--text); border-color: #2563eb; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+
+/* 终端 dock */
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; height: 44vh;
+  background: #0b0d12; border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; z-index: 40;
+}
+.dock-tabs {
+  display: flex; align-items: center; gap: 2px; padding: 4px 8px;
+  background: var(--panel); border-bottom: 1px solid var(--border);
+}
+.tab {
+  display: flex; align-items: center; gap: 6px; cursor: pointer;
+  font-size: 12px; padding: 5px 10px; border-radius: 7px 7px 0 0; color: var(--muted);
+}
+.tab.on { background: #0b0d12; color: var(--text); }
+.tab-x {
+  border: none; background: transparent; color: var(--muted);
+  cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px;
+}
+.tab-x:hover { color: #ef4444; }
+.dock-spacer { flex: 1; }
+.dock-tools { display: flex; align-items: center; gap: 10px; }
+.dock-cwd {
+  font-size: 11px; color: var(--muted); max-width: 280px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+.attach-cmd {
+  font-size: 11px; color: #a78bfa; cursor: pointer;
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 2px 7px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.attach-cmd:hover { border-color: #a78bfa; }
+.model-switch {
+  font-size: 12px; padding: 3px 8px; border-radius: 7px;
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border); cursor: pointer;
+}
+.dock-body { flex: 1; position: relative; overflow: hidden; padding: 6px 8px; }
+.term { width: 100%; height: 100%; }
+
+/* 底部 dock 打开时,给主体留出空间 */
+.app { padding-bottom: 12px; }
