@@ -1,6 +1,6 @@
 {
   "name": "cc-window",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "Local web dashboard for Claude Code: monitor every session, spawn new ones, and drive each interactive terminal — all in one page (127.0.0.1 only).",
   "keywords": [

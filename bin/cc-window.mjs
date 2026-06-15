@@ -5,6 +5,8 @@
 //   cc-window --help
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+import fs from "node:fs";
 import path from "node:path";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -33,7 +35,14 @@ Usage:
 Env overrides: CC_PORT / PORT, CC_HOST, CC_TMUX_SOCKET`);
   process.exit(0);
 } else {
-  // 用包内自带的 tsx 直接跑 TS 服务端(tsx 已列为 runtime 依赖)
-  const tsxBin = path.join(root, "node_modules", ".bin", process.platform === "win32" ? "tsx.cmd" : "tsx");
-  run(tsxBin, [path.join(root, "server", "index.ts")]);
+  // 用 tsx 直接跑 TS 服务端(tsx 是 runtime 依赖)。
+  // 注意:npm/npx 安装会把 tsx 提升(hoist)到顶层 node_modules,包内
+  // node_modules/.bin/tsx 并不存在 —— 必须按 Node 模块解析定位(会向上查找),
+  // 再用 node 跑它的 cli,跨平台且不依赖 .bin/.cmd 布局。
+  const require = createRequire(import.meta.url);
+  const tsxPkgPath = require.resolve("tsx/package.json");
+  const binField = JSON.parse(fs.readFileSync(tsxPkgPath, "utf8")).bin;
+  const binRel = typeof binField === "string" ? binField : binField.tsx;
+  const tsxCli = path.join(path.dirname(tsxPkgPath), binRel);
+  run(process.execPath, [tsxCli, path.join(root, "server", "index.ts")]);
 }
