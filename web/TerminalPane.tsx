@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import type { WsClient } from "./ws";
+import { shouldReattachTerminal } from "./connectionUi";
 import { stripMouseWheelInput } from "./terminalInput";
 import { normalizeTerminalSize, terminalSizeChanged, type TerminalSize } from "./terminalResize";
 import {
@@ -147,6 +148,14 @@ export function TerminalPane({
 
     client.send({ t: "attach", sessionId });
     if (active) scheduleResize();
+    const offStatus = client.onStatus((connected) => {
+      if (!shouldReattachTerminal(connected)) return;
+      client.send({ t: "attach", sessionId });
+      if (modeRef.current !== "readonly") {
+        lastResizeRef.current = null;
+        scheduleResize();
+      }
+    });
 
     const onData = term.onData((d) => {
       if (modeRef.current === "readonly") return; // 只读忽略键入
@@ -163,6 +172,14 @@ export function TerminalPane({
           });
         }
       } else if (m.t === "term_snapshot" && m.sessionId === sessionId) {
+        const next = normalizeTerminalSize({ cols: m.cols, rows: m.rows });
+        if (next.cols !== term.cols || next.rows !== term.rows) {
+          try {
+            term.resize(next.cols, next.rows);
+          } catch {
+            return;
+          }
+        }
         term.options.scrollback = READONLY_SCROLLBACK_LINES;
         term.write(RESET_SGR + "\x1b[?25l\x1b[3J\x1b[2J\x1b[H" + m.data.replace(/\n/g, "\r\n") + RESET_SGR, () => {
           term.scrollToBottom();
@@ -180,6 +197,7 @@ export function TerminalPane({
         resizeFrameRef.current = null;
       }
       onData.dispose();
+      offStatus();
       offMsg();
       ro.disconnect();
       window.removeEventListener("wheel", onWheel, { capture: true });
@@ -224,7 +242,7 @@ export function TerminalPane({
       {mode === "readonly" && (
         <div className="cc-ro-banner">🔒 本地终端驱动中 · 只读(整屏镜像 capture-pane)</div>
       )}
-      <div className="cc-term" ref={elRef} />
+      <div className={mode === "readonly" ? "cc-term cc-term-readonly" : "cc-term"} ref={elRef} />
     </div>
   );
 }

@@ -5,6 +5,8 @@ import { spawn } from "node-pty";
 import type { IPty } from "node-pty";
 import { TMUX_SOCKET, TMUX_SESSION_PREFIX, TERM_FLUSH_MS } from "./config.js";
 import { cancelCopyModeArgs, isPaneInCopyMode } from "./tmux-copy-mode.js";
+import { initialModeForDiscoveredSession, shouldUseReadonlyForWebAttach } from "./tmux-handoff.js";
+import { parsePaneSize } from "./tmux-pane-size.js";
 
 export interface SpawnOpts {
   cwd: string;
@@ -23,6 +25,12 @@ export interface ManagedMeta {
 
 /** 网页终端态:见 docs/08-terminal-handoff.md。 */
 export type TermMode = "interactive" | "readonly";
+
+interface PaneSnapshot {
+  data: string;
+  cols: number;
+  rows: number;
+}
 
 interface Managed {
   sessionId: string;
@@ -107,6 +115,18 @@ export class PtyManager extends EventEmitter {
   /** 当前网页终端态(外部/未知会话默认 interactive)。 */
   modeOf(sessionId: string): TermMode {
     return this.sessions.get(sessionId)?.mode ?? "interactive";
+  }
+
+  /** Web attach 前同步一次外部客户端状态,避免服务重启后误抢已有本地 Terminal 的尺寸。 */
+  prepareWebAttach(sessionId: string): TermMode {
+    const m = this.sessions.get(sessionId);
+    if (!m || m.backend !== "tmux" || !m.tmuxName) return this.modeOf(sessionId);
+    const n = this.clientCount(m.tmuxName);
+    if (n >= 0 && shouldUseReadonlyForWebAttach(m.mode, m.pty != null, n)) {
+      m.mode = "readonly";
+      m.pendingSince = null;
+    }
+    return m.mode;
   }
 
   managedMeta(): ManagedMeta[] {
@@ -377,19 +397,34 @@ export class PtyManager extends EventEmitter {
       if (m.mode !== "readonly" || m.backend !== "tmux" || !m.tmuxName) continue;
       if (!this.viewerCheck(m.sessionId)) continue;
       const snap = this.capturePane(m.tmuxName);
-      if (snap != null) this.emit("snapshot", m.sessionId, snap);
+      if (snap != null) this.emit("snapshot", m.sessionId, snap.data, snap.cols, snap.rows);
     }
   }
 
-  private capturePane(tmuxName: string): string | null {
+  private capturePane(tmuxName: string): PaneSnapshot | null {
     try {
-      return execFileSync("tmux", [...TX, "capture-pane", "-p", "-e", "-t", tmuxName], {
+      const size = this.paneSize(tmuxName);
+      const data = execFileSync("tmux", [...TX, "capture-pane", "-p", "-e", "-t", tmuxName], {
         encoding: "utf8",
         maxBuffer: 4 * 1024 * 1024,
         stdio: ["ignore", "pipe", "ignore"],
       });
+      return { data, cols: size.cols, rows: size.rows };
     } catch {
       return null;
+    }
+  }
+
+  private paneSize(tmuxName: string): { cols: number; rows: number } {
+    try {
+      const out = execFileSync(
+        "tmux",
+        [...TX, "display-message", "-p", "-t", tmuxName, "#{pane_width} #{pane_height}"],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+      );
+      return parsePaneSize(out) ?? { cols: 80, rows: 24 };
+    } catch {
+      return { cols: 80, rows: 24 };
     }
   }
 
@@ -474,6 +509,7 @@ export class PtyManager extends EventEmitter {
       if (!tmuxName || !tmuxName.startsWith(TMUX_SESSION_PREFIX)) continue;
       const sessionId = tmuxName.slice(TMUX_SESSION_PREFIX.length);
       if (this.sessions.has(sessionId)) continue;
+      const mode = initialModeForDiscoveredSession(this.clientCount(tmuxName));
       this.sessions.set(sessionId, {
         sessionId,
         name: "",
@@ -484,7 +520,7 @@ export class PtyManager extends EventEmitter {
         pty: null, // 按需(客户端 attach 时)重连
         buf: "",
         flushTimer: null,
-        mode: "interactive",
+        mode,
         pendingSince: null,
       });
     }

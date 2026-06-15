@@ -8,7 +8,7 @@ export type ServerMsg =
   | { t: "term_output"; sessionId: string; data: string }
   | { t: "term_exit"; sessionId: string; code: number; signal?: number }
   | { t: "term_mode"; sessionId: string; mode: "interactive" | "readonly" }
-  | { t: "term_snapshot"; sessionId: string; data: string }
+  | { t: "term_snapshot"; sessionId: string; data: string; cols: number; rows: number }
   | { t: "launched"; sessionId: string; name: string; cwd: string; model: string }
   | { t: "error"; sessionId?: string; message: string };
 

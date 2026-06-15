@@ -139,9 +139,9 @@ ptyMgr.on("mode", (sessionId: string, mode: "interactive" | "readonly") => {
   if (set) for (const ws of set) send(ws, { t: "term_mode", sessionId, mode });
 });
 // 只读态整屏快照 → 路由给订阅者
-ptyMgr.on("snapshot", (sessionId: string, data: string) => {
+ptyMgr.on("snapshot", (sessionId: string, data: string, cols: number, rows: number) => {
   const set = subs.get(sessionId);
-  if (set) for (const ws of set) send(ws, { t: "term_snapshot", sessionId, data });
+  if (set) for (const ws of set) send(ws, { t: "term_snapshot", sessionId, data, cols, rows });
 });
 // 只读镜像仅在有网页订阅时才抓 capture-pane(省 CPU)
 ptyMgr.setViewerCheck((id) => (subs.get(id)?.size ?? 0) > 0);
@@ -175,8 +175,9 @@ wss.on("connection", (ws) => {
       case "attach":
         if (sessionId) {
           attach(ws, sessionId);
+          const mode = ptyMgr.prepareWebAttach(sessionId);
           // 只读态(本地终端在驱动)不可再 attach 自己(会变双客户端);只告知态,靠 snapshot 镜像
-          if (ptyMgr.modeOf(sessionId) === "readonly") {
+          if (mode === "readonly") {
             send(ws, { t: "term_mode", sessionId, mode: "readonly" });
           } else {
             ptyMgr.cancelCopyModeForWeb(sessionId);

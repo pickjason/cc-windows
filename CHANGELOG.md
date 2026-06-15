@@ -2,6 +2,12 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/),记录格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [0.1.3] - 2026-06-15
+
+### 修复
+- **本地 Terminal 很宽时网页只读镜像出现选项重复/残字**:`term_snapshot` 增加 tmux pane 的 `cols/rows`,前端按真实尺寸 resize 后再写入快照;服务重启接管已有外部 Terminal 时从 readonly 起步,避免网页误抢尺寸。
+- **页面长时间使用后断线重连时 Dock 残留旧终端画面**:WebSocket 每次重连成功后,已打开的终端面板会重新发送 `attach` 并重新同步尺寸;断线期间看板继续显示上一份会话卡片,不再上方空态、下方旧 Dock 割裂。
+
 ## [0.1.2] - 2026-06-15
 
 ### 修复
@@ -39,6 +45,7 @@
 - **tmux 后端**(默认,装了 tmux 时):专用 socket `tmux -L ccwindow`,服务重启会话不丢;网页 ⇄ 本地终端自动交接(外部 attach 时网页转只读镜像,关闭后收回可交互)。
 - **开源就绪**:MIT 许可、`npx cc-window` 打包、中英双语 README、环境变量配置(`CC_PORT` / `PORT` / `CC_HOST` / `CC_TMUX_SOCKET`)、监控 hooks 安装器(`install-hooks`,支持 `--dry-run` / `--uninstall`)。
 
+[0.1.3]: https://github.com/pickjason/cc-windows/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/pickjason/cc-windows/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/pickjason/cc-windows/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/pickjason/cc-windows/releases/tag/v0.1.0

@@ -53,7 +53,7 @@
 | `term_output` | `{ sessionId, data }` | PTY 有输出(`data` 为原始终端字节串) |
 | `term_exit` | `{ sessionId, code, signal }` | PTY 退出 |
 | `term_mode` | `{ sessionId, mode: "interactive"\|"readonly" }` | 网页终端态变化(见 [08 文档](08-terminal-handoff.md)) |
-| `term_snapshot` | `{ sessionId, data }` | 只读态周期推送的整屏快照(网页清屏后写入) |
+| `term_snapshot` | `{ sessionId, data, cols, rows }` | 只读态周期推送的整屏快照;`cols/rows` 为 tmux pane 当前尺寸,前端先 resize 再清屏写入 |
 | `launched` | `{ sessionId, name, cwd, model }` | 新会话已启动(对应某个 POST) |
 | `error` | `{ message, sessionId? }` | 出错(如本地终端打开失败) |
 
@@ -83,6 +83,7 @@
 
 - `term_output` / `term_input` 的 `data` 是**原始终端字节**(含 ANSI 转义),前端直接喂 `xterm.write` / 后端直接 `pty.write`,服务端不解析、不改写。
 - 不向 live xterm 注入 `capture-pane` 历史:tmux 历史不是完整终端状态,硬写进 xterm 会破坏 cursor/screen 同步。网页 scrollback 只保留网页打开后真实收到的输出。
+- `term_snapshot` 是 readonly 镜像快照,不是 live PTY 流。服务端必须同时下发 tmux pane 的 `cols/rows`,前端按该尺寸 resize xterm 后再写快照,避免本地 Terminal 很宽而网页较窄时发生自动换行、选项重影、光标错位。
 - 大输出可能高频;前端按 `xterm` 默认缓冲即可。后端对单会话输出做轻量合并(如 16ms 节流)以降帧数(可选优化)。
 
 ## 模型清单(config)

@@ -173,12 +173,45 @@ tmux -L ccwindow send-keys -t <tmuxName> -X cancel
 
 仅当 `pane_in_mode=1` 时才 cancel。只读态不执行,避免打断用户在本地 Terminal 中主动使用 copy-mode。
 
+#### 6. 只读镜像必须匹配 tmux pane 尺寸
+
+用户反馈 Claude 授权选择器出现重复选项/残字。现场证据:
+
+- tmux 自身 `capture-pane` 内容正常,选项没有重复;
+- 本地 Terminal 客户端 attach 到同一会话,tmux pane 尺寸为 `227x27`;
+- 网页 dock 里的 xterm 明显没有 227 列宽。
+
+根因:readonly 镜像把本地 Terminal 的 `capture-pane` 快照写进网页 xterm,但没有同步 tmux pane 的真实 `cols/rows`。当本地 Terminal 很宽、网页较窄时,xterm 会按网页列数重新折行;Claude 选择器使用光标定位/清行控制序列,折行后旧内容清不干净,表现为选项重复、残字、光标错位。
+
+最终处理:
+
+- `term_snapshot` 协议增加 `cols` / `rows`;
+- 服务端发送快照前读取 `#{pane_width} #{pane_height}`;
+- 前端收到 snapshot 后先 `term.resize(cols, rows)`,再清屏写入快照;
+- readonly 容器允许横向滚动,不把 200+ 列本地终端强行折成网页宽度。
+- 服务重启接管已有 tmux 会话时,若发现该会话已有外部 client,初始即设为 readonly;网页 attach 前也会再同步一次 client 状态,避免误建 web attach 抢本地 Terminal 尺寸。
+
+#### 7. 长时间使用后的 WS 断线重连收敛
+
+用户反馈页面用久后出现「上方断开/重连中,下方 Dock 仍显示旧终端画面」。代码排查确认两个前端收敛问题:
+
+- `TerminalPane` 只在挂载时发送一次 `attach`;WebSocket 断线后即便重连成功,已打开的终端面板也不会重新订阅 `term_output` / `term_snapshot`;
+- `Board` 在 `connected=false` 时直接显示「正在连接服务端…」,即使本地还保留上一份 `sessions`,视觉上会变成上方空态、下方旧 Dock。
+
+最终处理:
+
+- `TerminalPane` 订阅 `WsClient.onStatus`,每次 `connected=true` 都重新发送 `attach`,interactive 态同时清掉 resize 去重缓存并重新 fit/resize;
+- `Board` 只有在断线且没有任何 cached session 时才显示连接空态;若已有会话,断线期间继续显示上一份卡片,顶部连接指示负责提示状态。
+
 ### 最终验证记录
 
 自动验证:
 
 ```bash
+npx tsx server/tmux-pane-size.test.ts
+npx tsx server/tmux-handoff.test.ts
 npx tsx server/tmux-copy-mode.test.ts
+npx tsx web/connectionUi.test.ts
 npx tsx web/terminalInput.test.ts
 npx tsx web/terminalScroll.test.ts
 npx tsx web/terminalResize.test.ts
@@ -201,3 +234,4 @@ npm run build
 - 鼠标滚轮改为网页本地 scrollback(仅网页打开后的真实输出),不再触发 tmux copy-mode;
 - 已经残留在 copy-mode 的 tmux pane,网页重开 interactive 面板时自动退出,避免“叉掉再打开还是横条”。
 - 不要把 `capture-pane` 历史注入 live xterm;这会破坏光标/屏幕状态同步。
+- readonly `capture-pane` 镜像必须按 tmux pane 实际尺寸渲染,避免本地 Terminal 宽度与网页宽度不同导致选择器重影。

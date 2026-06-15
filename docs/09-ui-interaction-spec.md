@@ -157,7 +157,7 @@
 
 **只读(readonly,本地终端在驱动时)**
 - **忽略键入**(不发 `term_input`,`disableStdin`);**不发 resize**;**忽略 `term_output`**。
-- 收 `term_snapshot` → 清屏回原点后整屏重绘(capture-pane 镜像)。
+- 收 `term_snapshot {data,cols,rows}` → 先按 tmux pane 的真实尺寸 resize xterm,再清屏回原点整屏重绘(capture-pane 镜像)。
 - 顶角显示只读横幅「🔒 本地终端驱动中 · 只读」。
 - 转回 interactive 时:恢复光标 + 重新 fit + 发一次 `term_resize` + 聚焦。
 
@@ -170,6 +170,7 @@
 - 网页 scrollback 只包含该面板打开后真实收到的 `term_output`;不把 tmux `capture-pane` 历史注入 live xterm,避免破坏光标/屏幕状态同步。
 - 这样鼠标可以正常回看,同时避免滚轮误触后看到 tmux copy-mode 分隔线 / 状态标记(`[N/M]`)导致画面像“条纹”。
 - 关闭网页面板不会改变 tmux 会话;若此前已通过其它入口进入 copy-mode,下次网页 interactive 打开时会自动收敛退出。
+- readonly 镜像使用本地 tmux pane 的真实 `cols/rows` 渲染;若本地 Terminal 比网页更宽,网页只读容器允许横向滚动,避免强行折行导致选择器重影/残字。
 - 新输出到达时,若当前视图本来在底部则自动跟随到底;若用户已经滚上去看历史,不强制拉回底部。
 - **键盘 ↑/↓** 仍直达 claude,切换**输入历史**。
 - 需要查看网页打开前的 tmux 历史或使用 tmux copy-mode 时,点「打开终端」在本地 Terminal 里接管该会话。
@@ -214,7 +215,7 @@
 | `roster {sessions}` | **全量替换**会话列表(当前主推送方式) |
 | `status_update {session}` | 单会话增量更新(协议已定义/前端已处理;服务端当前以 `roster` 全量推送为主) |
 | `term_output {sessionId,data}` | 写入对应面板(只读态忽略) |
-| `term_snapshot {sessionId,data}` | 只读态整屏镜像重绘 |
+| `term_snapshot {sessionId,data,cols,rows}` | 只读态整屏镜像重绘;`cols/rows` 用于匹配本地 tmux pane 尺寸 |
 | `term_mode {sessionId,mode}` | 切换该会话面板的 interactive/readonly 呈现 + Dock 工具态 |
 | `term_exit {sessionId,code}` | 面板内提示已退出;`main` 自动关闭该面板 |
 | `launched {sessionId,…}` | 自动打开该会话面板、关闭新建弹窗 |

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { SessionView } from "../server/types";
 import { SessionCard } from "./SessionCard";
+import { shouldShowConnectingEmpty } from "./connectionUi";
 import { NEEDS_ME, sortSessions } from "./ui-data";
 
 // 看板:顶栏(品牌 / 新建 / 统计 / 待处理 / 连接指示)+ 网格(compact tight)。
@@ -24,7 +25,7 @@ export function Board({
   const needsMe = sessions.filter((s) => NEEDS_ME.includes(s.status)).length;
 
   let body: ReactNode;
-  if (!connected) {
+  if (shouldShowConnectingEmpty(connected, sorted.length)) {
     body = <div className="cc-empty">正在连接服务端…</div>;
   } else if (sorted.length === 0) {
     body = <div className="cc-empty">暂无运行中的 Claude Code 会话。点「＋ 新建会话」开一个。</div>;
