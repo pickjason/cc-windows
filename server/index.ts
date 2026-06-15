@@ -33,6 +33,18 @@ const engine = new StatusEngine(roster, tailer, {
   context: (id) => ctxTracker.get(id),
 });
 
+function packageVersion(): string {
+  const packagePath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../package.json");
+  try {
+    const pkg = JSON.parse(fs.readFileSync(packagePath, "utf8")) as { version?: unknown };
+    return typeof pkg.version === "string" ? pkg.version : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+const APP_VERSION = packageVersion();
+
 roster.on("error", (err: Error) =>
   console.warn(`[roster] 轮询失败(保留上一份名册): ${err.message}`),
 );
@@ -148,7 +160,7 @@ function detachAll(ws: WebSocket): void {
 
 wss.on("connection", (ws) => {
   clients.add(ws);
-  send(ws, { t: "hello", version: "0.1.0" });
+  send(ws, { t: "hello", version: APP_VERSION });
   send(ws, { t: "roster", sessions: engine.computeViews(Date.now()) });
 
   ws.on("message", (raw) => {
@@ -169,8 +181,6 @@ wss.on("connection", (ws) => {
           } else {
             ptyMgr.cancelCopyModeForWeb(sessionId);
             ptyMgr.ensureAttached(sessionId); // tmux 会话按需重连(重启后接管 / 重开面板)
-            const history = ptyMgr.captureHistory(sessionId);
-            if (history) send(ws, { t: "term_history", sessionId, data: history });
             send(ws, { t: "term_mode", sessionId, mode: "interactive" });
           }
         }

@@ -120,7 +120,7 @@ tmux -L ccwindow display-message -p -t ccw_e03566ed-cb97-4556-9b80-9ab1baed046c 
 - `stripMouseWheelInput()` 过滤 SGR mouse (`\x1b[<64;...M` 等)和 X10 mouse wheel 序列,避免任何漏网滚轮再通过 `term_input` 打到 tmux;
 - 新输出到达时,若用户在底部则自动跟随到底;若用户已滚上去看历史,不强行拉回。
 
-#### 4. 打开面板时注入 tmux 历史
+#### 4. 回滚失败方案 — 不向 live xterm 注入 tmux 历史
 
 涉及文件:
 - `server/pty.ts`
@@ -129,7 +129,7 @@ tmux -L ccwindow display-message -p -t ccw_e03566ed-cb97-4556-9b80-9ab1baed046c 
 - `web/TerminalPane.tsx`
 - `docs/05-protocol.md`
 
-新增服务端消息:
+曾尝试新增服务端消息:
 
 ```ts
 { t: "term_history"; sessionId: string; data: string }
@@ -141,7 +141,20 @@ tmux -L ccwindow display-message -p -t ccw_e03566ed-cb97-4556-9b80-9ab1baed046c 
 tmux -L ccwindow capture-pane -p -e -S -5000 -t <tmuxName>
 ```
 
-抓最近历史 + 当前屏,前端写入 xterm 本地 scrollback。这样用户刚打开网页终端时,鼠标滚轮就能回看最近输出,而不是只能看“网页打开之后”的输出。
+抓最近历史 + 当前屏,前端写入 xterm 本地 scrollback。实测该方案会破坏 live xterm 的终端状态:
+
+- xterm scrollback 被灌入大量 capture-pane 输出,例如 `scrollHeight=21613`;
+- Claude TUI 状态栏和分隔线多次重复;
+- 后续真实 PTY 输出继续在这个“伪当前屏”上绘制,导致光标定位错误、内容叠画。
+
+根因:tmux `capture-pane` 只是屏幕文本快照,不是完整终端状态机。它不包含真实光标位置、alternate screen 状态、滚动区域、应用内部重绘时序。把它当作 live PTY 字节流喂给 xterm,会让 xterm 的模拟器状态与 tmux/Claude 的真实状态分叉。
+
+最终处理:
+
+- 移除 `term_history` 协议;
+- 不再调用 `capture-pane -S -5000` 初始化 interactive scrollback;
+- 网页 scrollback 只保留网页打开后真实收到的 `term_output`;
+- 需要查看网页打开前历史时,用「打开终端」在本地 Terminal 里使用 tmux copy-mode。
 
 #### 5. 重开面板前自动退出遗留 copy-mode
 
@@ -151,7 +164,7 @@ tmux -L ccwindow capture-pane -p -e -S -5000 -t <tmuxName>
 - `server/pty.ts`
 - `server/index.ts`
 
-WebSocket 收到 `attach` 且目标会话是 interactive 时,在 `ensureAttached()` 和 `term_history` 之前先执行:
+WebSocket 收到 `attach` 且目标会话是 interactive 时,在 `ensureAttached()` 之前先执行:
 
 ```bash
 tmux -L ccwindow display-message -p -t <tmuxName> '#{pane_in_mode}'
@@ -169,6 +182,7 @@ npx tsx server/tmux-copy-mode.test.ts
 npx tsx web/terminalInput.test.ts
 npx tsx web/terminalScroll.test.ts
 npx tsx web/terminalResize.test.ts
+npx tsx web/terminalTheme.test.ts
 npm run typecheck
 npm run build
 ```
@@ -179,10 +193,11 @@ npm run build
 - 打开 `lz_ai` 面板前,tmux 侧曾是 `pane_in_mode=1`;
 - 修复后点击卡片打开同一会话,网页中不再出现右上角 `[N/M]` copy-mode 标记;
 - tmux 侧变为 `pane_in_mode=0`;
-- 注入历史后,xterm 本地 scrollback 生效,实测 `scrollHeight=5716`,滚轮向上后 `scrollTop` 从 `5474` 变为 `1904`;
-- 滚轮后 tmux 仍保持 `pane_in_mode=0`。
+- 滚轮后 tmux 仍保持 `pane_in_mode=0`;
+- 发现 `term_history` 注入会导致光标定位错误后已回滚,刷新/重开面板后由真实 PTY attach 输出重建 xterm 当前屏。
 
 结论:
 - resize 失控回环由 flex 链 `min-width:0` + resize 去重/RAF/夹取解决;
-- 鼠标滚轮改为网页本地 scrollback,不再触发 tmux copy-mode;
+- 鼠标滚轮改为网页本地 scrollback(仅网页打开后的真实输出),不再触发 tmux copy-mode;
 - 已经残留在 copy-mode 的 tmux pane,网页重开 interactive 面板时自动退出,避免“叉掉再打开还是横条”。
+- 不要把 `capture-pane` 历史注入 live xterm;这会破坏光标/屏幕状态同步。

@@ -22,8 +22,10 @@ const XTERM_THEME = {
   selectionBackground: "#252e3b",
   black: "#0a0d12",
   brightBlack: "#48535f",
-  red: "#ef4444",
-  green: "#34d399",
+  red: "#a94b51",
+  green: "#3e7f61",
+  brightRed: "#bd6168",
+  brightGreen: "#579a75",
   yellow: "#f59e0b",
   blue: "#3b82f6",
   magenta: "#a78bfa",
@@ -118,8 +120,11 @@ export function TerminalPane({
 
   useEffect(() => {
     const term = new Terminal({
-      fontSize: 13,
+      fontSize: 14,
       fontFamily: "'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace",
+      fontWeight: 500,
+      fontWeightBold: 700,
+      lineHeight: 1.22,
       cursorBlink: true,
       scrollback: INTERACTIVE_SCROLLBACK_LINES,
       theme: XTERM_THEME,
@@ -155,13 +160,6 @@ export function TerminalPane({
           const shouldFollow = !metrics || isAtScrollBottom(metrics);
           term.write(m.data, () => {
             if (shouldFollow) term.scrollToBottom();
-          });
-        }
-      } else if (m.t === "term_history" && m.sessionId === sessionId) {
-        if (modeRef.current !== "readonly") {
-          term.options.scrollback = INTERACTIVE_SCROLLBACK_LINES;
-          term.write(RESET_SGR + "\x1b[3J\x1b[2J\x1b[H" + m.data.replace(/\n/g, "\r\n") + RESET_SGR, () => {
-            term.scrollToBottom();
           });
         }
       } else if (m.t === "term_snapshot" && m.sessionId === sessionId) {
