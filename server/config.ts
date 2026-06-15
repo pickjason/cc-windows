@@ -1,9 +1,13 @@
 import os from "node:os";
 import path from "node:path";
 
-/** 监听地址 —— 仅回环,绝不对外暴露。 */
-export const HOST = "127.0.0.1";
-export const PORT = 4317;
+/**
+ * 监听地址 —— 默认仅回环,绝不对外暴露。可用环境变量覆盖:
+ *   CC_HOST(默认 127.0.0.1)、CC_PORT / PORT(默认 4317)。
+ * ⚠️ 改 HOST 为非回环地址会把会话控制暴露到网络,自行承担风险(无内置鉴权)。
+ */
+export const HOST = process.env.CC_HOST || "127.0.0.1";
+export const PORT = Number(process.env.CC_PORT || process.env.PORT || 4317);
 
 const HOME = os.homedir();
 
@@ -25,7 +29,7 @@ export const PATHS = {
 
 /**
  * 把 cwd 编码成 ~/.claude/projects 下的子目录名。
- * 已核实规则:把 `/` 与 `.` 都替换成 `-`(故 /Users/wang/.claude -> -Users-wang--claude,双横线)。
+ * 已核实规则:把 `/` 与 `.` 都替换成 `-`(故 /Users/you/.claude -> -Users-you--claude,双横线)。
  * 见 docs/02-claude-code-observability.md。
  */
 export function encodeCwd(cwd: string): string {
@@ -63,7 +67,7 @@ export const TERM_FLUSH_MS = 16;
  * 不污染用户默认 tmux,且专用 server 的环境从首次 cleanEnv 起就是干净的。
  * tmux 会话名 = `<前缀><claude sessionId>`,便于服务重启后重新发现并接管。
  */
-export const TMUX_SOCKET = "ccwindow";
+export const TMUX_SOCKET = process.env.CC_TMUX_SOCKET || "ccwindow";
 export const TMUX_SESSION_PREFIX = "ccw_";
 
 /**

@@ -1,5 +1,6 @@
 import http from "node:http";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import express from "express";
@@ -74,7 +75,8 @@ app.delete("/api/sessions/:id", (req, res) => {
 });
 
 // 生产:托管前端构建产物;开发用 vite(5173)+ 代理,不走这里。
-const webDist = path.resolve(process.cwd(), "dist/web");
+// 路径相对本模块(server/),而非 process.cwd() —— 这样 `npx cc-window` 从任意目录跑也能找到。
+const webDist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist/web");
 if (fs.existsSync(webDist)) {
   app.use(express.static(webDist));
   app.get("*", (_req, res) => res.sendFile(path.join(webDist, "index.html")));

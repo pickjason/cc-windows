@@ -38,7 +38,7 @@ exit 0
 
 输出样例(`events.jsonl` 每行):
 ```json
-{"ts":"2026-06-14T08:01:22Z","session_id":"f1e2...","event":"PreToolUse","cwd":"/Users/wang/IdeaProjects/foo","tool":"Bash","notification_type":null,"source":null,"end_reason":null,"agent_type":null}
+{"ts":"2026-06-14T08:01:22Z","session_id":"f1e2...","event":"PreToolUse","cwd":"/Users/you/IdeaProjects/foo","tool":"Bash","notification_type":null,"source":null,"end_reason":null,"agent_type":null}
 {"ts":"2026-06-14T08:01:40Z","session_id":"f1e2...","event":"Notification","cwd":"...","tool":null,"notification_type":"permission_prompt",...}
 ```
 

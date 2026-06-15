@@ -1,17 +1,53 @@
 {
   "name": "cc-window",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
-  "description": "本地网页版 Claude Code 多会话管理台:监控 / 新建 / 操作所有会话",
+  "description": "Local web dashboard for Claude Code: monitor every session, spawn new ones, and drive each interactive terminal — all in one page (127.0.0.1 only).",
+  "keywords": [
+    "claude-code",
+    "claude",
+    "anthropic",
+    "dashboard",
+    "terminal",
+    "tmux",
+    "xterm",
+    "monitoring",
+    "cli",
+    "sessions"
+  ],
+  "license": "MIT",
+  "author": "cc-window contributors",
+  "homepage": "https://github.com/pickjason/cc-windows#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pickjason/cc-windows.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pickjason/cc-windows/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "cc-window": "bin/cc-window.mjs"
+  },
+  "files": [
+    "bin",
+    "server",
+    "dist/web",
+    "scripts",
+    "tsconfig.json"
+  ],
   "scripts": {
     "dev": "concurrently -n server,web -c cyan,magenta \"npm:dev:server\" \"npm:dev:web\"",
     "dev:server": "tsx watch server/index.ts",
     "dev:web": "vite",
     "build": "vite build",
     "start": "tsx server/index.ts",
+    "setup": "npm install && npm run build",
     "typecheck": "tsc --noEmit",
     "install-hooks": "bash scripts/install-hooks.sh",
+    "prepublishOnly": "npm run build",
     "postinstall": "chmod +x node_modules/node-pty/prebuilds/darwin-*/spawn-helper 2>/dev/null || true"
   },
   "dependencies": {
@@ -21,6 +57,7 @@
     "node-pty": "^1.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "tsx": "^4.19.2",
     "ws": "^8.18.0"
   },
   "devDependencies": {
@@ -31,7 +68,6 @@
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^6.0.5"
   }

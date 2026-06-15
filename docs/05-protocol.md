@@ -24,13 +24,13 @@
 ### `GET /api/recent-dirs`
 从 `~/.claude.json` 的 `projects`(原始绝对路径 key)+ 当前 roster 的 `cwd` 合并去重,按最近优先,返回供「目录选择」快捷项。
 ```json
-[ { "path": "/Users/wang/IdeaProjects/stylePrompt", "lastSessionAt": 1781322213116 } ]
+[ { "path": "/Users/you/IdeaProjects/stylePrompt", "lastSessionAt": 1781322213116 } ]
 ```
 
 ### `POST /api/sessions`  —— 新建会话
 ```json
 // 请求
-{ "cwd": "/Users/wang/IdeaProjects/foo", "model": "opus", "name": "foo-feature" }
+{ "cwd": "/Users/you/IdeaProjects/foo", "model": "opus", "name": "foo-feature" }
 // 响应
 { "sessionId": "f1e2...", "name": "foo-feature", "cwd": "...", "model": "opus" }
 ```
