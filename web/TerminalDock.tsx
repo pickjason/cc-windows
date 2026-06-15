@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { TerminalPane } from "./TerminalPane";
 import type { WsClient } from "./ws";
 import type { SessionView } from "../server/types";
@@ -5,6 +6,11 @@ import type { SessionView } from "../server/types";
 interface ModelOption {
   value: string;
   label: string;
+}
+
+function fmtTokens(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`;
+  return String(n);
 }
 
 export function TerminalDock({
@@ -24,9 +30,25 @@ export function TerminalDock({
   onActivate: (id: string) => void;
   onClose: (id: string) => void;
 }) {
+  // 内联确认(不用 window.confirm,避免阻塞 / 更可控)
+  const [confirmKill, setConfirmKill] = useState<string | null>(null);
+  useEffect(() => setConfirmKill(null), [active]); // 切 tab 时重置确认
+
   if (open.length === 0) return null;
   const view = (id: string) => sessions.find((s) => s.sessionId === id);
   const nameOf = (id: string) => view(id)?.name ?? id.slice(0, 8);
+  const av = active ? view(active) : undefined;
+
+  function killActive(): void {
+    if (!active) return;
+    if (confirmKill === active) {
+      client.send({ t: "kill", sessionId: active });
+      setConfirmKill(null);
+      // term_exit 回来后 main 会关掉面板;这里不抢先关,避免误关
+    } else {
+      setConfirmKill(active);
+    }
+  }
 
   return (
     <div className="dock">
@@ -51,27 +73,35 @@ export function TerminalDock({
           </div>
         ))}
         <div className="dock-spacer" />
-        {active && (
+        {av && (
           <div className="dock-tools">
-            {view(active)?.tmuxTarget && (
+            {av.ctxTokens != null && (
+              <span className="ctx" title={`上下文约 ${av.ctxTokens} tokens(分母为常见窗口,仅供参考)`}>
+                <span className="ctx-bar">
+                  <span className="ctx-fill" style={{ width: `${av.ctxPct ?? 0}%` }} />
+                </span>
+                ctx ~{fmtTokens(av.ctxTokens)}
+                {av.ctxPct != null ? ` · ${av.ctxPct}%` : ""}
+              </span>
+            )}
+            {av.tmuxTarget && (
               <code
                 className="attach-cmd"
                 title="在本地终端运行可接管同一会话(点击复制)"
-                onClick={() => navigator.clipboard?.writeText(view(active)!.tmuxTarget!)}
+                onClick={() => navigator.clipboard?.writeText(av.tmuxTarget!)}
               >
-                {view(active)!.tmuxTarget}
+                {av.tmuxTarget}
               </code>
             )}
-            <span className="dock-cwd" title={view(active)?.cwd}>
-              {view(active)?.cwd}
+            <span className="dock-cwd" title={av.cwd}>
+              {av.cwd}
             </span>
             <select
               className="model-switch"
               value=""
               onChange={(e) => {
-                if (e.target.value) {
+                if (e.target.value && active)
                   client.send({ t: "switch_model", sessionId: active, model: e.target.value });
-                }
               }}
             >
               <option value="">切换模型…</option>
@@ -81,6 +111,13 @@ export function TerminalDock({
                 </option>
               ))}
             </select>
+            <button
+              className={`btn kill ${confirmKill === active ? "confirm" : ""}`}
+              onClick={killActive}
+              title="结束该会话(tmux 后端会真正 kill-session)"
+            >
+              {confirmKill === active ? "确认结束?" : "结束会话"}
+            </button>
           </div>
         )}
       </div>

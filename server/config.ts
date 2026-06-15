@@ -46,6 +46,18 @@ export const ROSTER_POLL_MS = 1500;
  */
 export const WORKING_LEAD_MS = 4000;
 
+/** 上下文占用估算:近似上下文窗口(分母),用于 ctx% —— 实际窗口随模型不同,这里取常见值,展示标"约"。 */
+export const CONTEXT_WINDOW_TOKENS = 200_000;
+export const CONTEXT_POLL_MS = 3000;
+
+/** events.jsonl 行数滚动:超过 MAX 行则只保留最后 KEEP 行(防无限增长)。 */
+export const EVENTS_MAX_LINES = 5000;
+export const EVENTS_KEEP_LINES = 2000;
+export const EVENTS_ROTATE_MS = 60_000;
+
+/** PTY 输出节流:高频输出在此窗口内合并成一条,降帧降 CPU(不影响输入)。 */
+export const TERM_FLUSH_MS = 16;
+
 /**
  * tmux 后端:用专用 socket(`tmux -L <socket>`)隔离 cc-window 的会话,
  * 不污染用户默认 tmux,且专用 server 的环境从首次 cleanEnv 起就是干净的。

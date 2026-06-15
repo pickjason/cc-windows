@@ -74,11 +74,15 @@ M1 脚手架+Hooks ──► M2 后端状态引擎 ──► M3 只读看板(首
 ---
 
 ## M6 · 打磨(可选增强)
-- transcript 增强:卡片显示上下文占用 %、token(读 transcript usage)。
-- 输出节流(16ms 合并)、多面板平铺/标签布局。
-- `DELETE /api/sessions/:id` 优雅结束;一次性 token 鉴权落地。
-- `events.jsonl` 滚动;`install-hooks.sh --uninstall`。
-- 错误态/重连提示打磨。
+已做(本轮选定,均实机验证):
+- ✅ **网页内结束会话**:dock 内联确认按钮「结束会话→确认结束?」+ WS `kill` / `DELETE /api/sessions/:id`,tmux 后端真正 `kill-session`;`term_exit` 自动关面板。
+- ✅ **上下文占用**:`server/transcript.ts` 读各会话 transcript 尾部最新 `message.usage`,卡片/工具条显示 `ctx ~Nk · P%`(分母取常见窗口,标"约")。
+- ✅ **健壮性**:`events.jsonl` 按行数滚动(超 `EVENTS_MAX_LINES` 留最后 `EVENTS_KEEP_LINES`,EventTailer 感知截断重 seed);PTY 输出 `TERM_FLUSH_MS`(16ms)节流合并。
+- ✅ `install-hooks.sh --uninstall`(M1 即随安装器一并实现)。
+
+未做(可选,未选):
+- 一次性 token 鉴权(当前仅 127.0.0.1 + Origin 校验)。
+- 多面板平铺布局、错误态/重连 toast 打磨。
 
 ---
 

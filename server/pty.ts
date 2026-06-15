@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { spawn } from "node-pty";
 import type { IPty } from "node-pty";
-import { TMUX_SOCKET, TMUX_SESSION_PREFIX } from "./config.js";
+import { TMUX_SOCKET, TMUX_SESSION_PREFIX, TERM_FLUSH_MS } from "./config.js";
 
 export interface SpawnOpts {
   cwd: string;
@@ -26,6 +26,8 @@ interface Managed {
   backend: "tmux" | "direct";
   tmuxName?: string;
   pty: IPty | null; // tmux 后端可为 null(已 detach,按需重连)
+  buf: string; // 输出节流缓冲
+  flushTimer: NodeJS.Timeout | null;
 }
 
 /**
@@ -110,6 +112,8 @@ export class PtyManager extends EventEmitter {
         backend: "tmux",
         tmuxName,
         pty: null,
+        buf: "",
+        flushTimer: null,
       };
       this.sessions.set(sessionId, m);
       this.ensureAttached(sessionId, cols, rows);
@@ -131,6 +135,8 @@ export class PtyManager extends EventEmitter {
       model: opts.model,
       backend: "direct",
       pty: p,
+      buf: "",
+      flushTimer: null,
     };
     this.sessions.set(sessionId, m);
     this.wire(m);
@@ -155,8 +161,28 @@ export class PtyManager extends EventEmitter {
   private wire(m: Managed): void {
     const p = m.pty;
     if (!p) return;
-    p.onData((data) => this.emit("data", m.sessionId, data));
+    m.buf = "";
+    m.flushTimer = null;
+    const flush = () => {
+      m.flushTimer = null;
+      const d = m.buf;
+      m.buf = "";
+      if (d) this.emit("data", m.sessionId, d);
+    };
+    p.onData((data) => {
+      // 输出节流:TERM_FLUSH_MS 窗口内合并,降帧降 CPU
+      m.buf += data;
+      if (!m.flushTimer) m.flushTimer = setTimeout(flush, TERM_FLUSH_MS);
+    });
     p.onExit(({ exitCode, signal }) => {
+      if (m.flushTimer) {
+        clearTimeout(m.flushTimer);
+        m.flushTimer = null;
+      }
+      if (m.buf) {
+        this.emit("data", m.sessionId, m.buf); // 退出前 flush 残留输出
+        m.buf = "";
+      }
       m.pty = null;
       if (m.backend === "tmux" && m.tmuxName && this.tmuxExists(m.tmuxName)) {
         return; // 只是 detach,tmux 会话仍在;保留条目,下次按需重连
@@ -197,6 +223,7 @@ export class PtyManager extends EventEmitter {
   kill(sessionId: string): void {
     const m = this.sessions.get(sessionId);
     if (!m) return;
+    if (m.flushTimer) clearTimeout(m.flushTimer);
     if (m.backend === "tmux" && m.tmuxName) {
       try {
         execFileSync("tmux", [...TX, "kill-session", "-t", m.tmuxName], { stdio: "ignore" });
@@ -249,6 +276,8 @@ export class PtyManager extends EventEmitter {
         backend: "tmux",
         tmuxName,
         pty: null, // 按需(客户端 attach 时)重连
+        buf: "",
+        flushTimer: null,
       });
     }
   }

@@ -60,4 +60,7 @@ export interface SessionView {
   managedByUs: boolean;
   /** 本台启动且 tmux 后端时,本地可用此命令 attach 同一会话。 */
   tmuxTarget?: string;
+  /** 近似上下文占用(来自 transcript 最新 assistant usage):token 数与百分比(分母为常见窗口,标"约")。 */
+  ctxTokens?: number;
+  ctxPct?: number;
 }

@@ -4,19 +4,32 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import express from "express";
 import { WebSocketServer, WebSocket } from "ws";
-import { HOST, PORT, MODELS, DEFAULT_MODEL } from "./config.js";
+import {
+  HOST,
+  PORT,
+  MODELS,
+  DEFAULT_MODEL,
+  PATHS,
+  CONTEXT_POLL_MS,
+  EVENTS_MAX_LINES,
+  EVENTS_KEEP_LINES,
+  EVENTS_ROTATE_MS,
+} from "./config.js";
 import { RosterPoller } from "./roster.js";
 import { EventTailer } from "./events.js";
 import { StatusEngine } from "./status.js";
 import { PtyManager } from "./pty.js";
+import { ContextTracker } from "./transcript.js";
 import { recentDirs } from "./recent-dirs.js";
 
 // ── 状态引擎(M2)+ PTY 管理(M4)──────────────────────────────
 const roster = new RosterPoller();
 const tailer = new EventTailer();
 const ptyMgr = new PtyManager();
+const ctxTracker = new ContextTracker();
 const engine = new StatusEngine(roster, tailer, {
   managed: () => ptyMgr.managedMeta(),
+  context: (id) => ctxTracker.get(id),
 });
 
 roster.on("error", (err: Error) =>
@@ -51,6 +64,13 @@ app.post("/api/sessions", async (req, res) => {
   broadcast({ t: "launched", sessionId: out.sessionId, name: out.name, cwd, model: m });
   scheduleBroadcast();
   res.json({ sessionId: out.sessionId, name: out.name, cwd, model: m });
+});
+
+// 结束会话(本台):真正 kill 掉(tmux 后端会 kill-session)
+app.delete("/api/sessions/:id", (req, res) => {
+  ptyMgr.kill(req.params.id);
+  scheduleBroadcast();
+  res.status(204).end();
 });
 
 // 生产:托管前端构建产物;开发用 vite(5173)+ 代理,不走这里。
@@ -146,6 +166,12 @@ wss.on("connection", (ws) => {
         if (sessionId && typeof msg.model === "string")
           ptyMgr.switchModel(sessionId, msg.model);
         break;
+      case "kill":
+        if (sessionId) {
+          ptyMgr.kill(sessionId);
+          scheduleBroadcast();
+        }
+        break;
       case "launch": {
         const cwd = typeof msg.cwd === "string" ? msg.cwd : "";
         if (!cwd) break;
@@ -171,10 +197,40 @@ wss.on("connection", (ws) => {
 });
 
 // ── 启动 ──────────────────────────────────────────────────────
+// events.jsonl 行数滚动:超过上限只保留最后 EVENTS_KEEP_LINES 行(EventTailer 会感知截断并重新 seed)
+async function rotateEvents(): Promise<void> {
+  try {
+    const lines = (await fsp.readFile(PATHS.eventsFile, "utf8"))
+      .split("\n")
+      .filter((l) => l.length > 0);
+    if (lines.length <= EVENTS_MAX_LINES) return;
+    const tmp = `${PATHS.eventsFile}.tmp`;
+    await fsp.writeFile(tmp, lines.slice(-EVENTS_KEEP_LINES).join("\n") + "\n");
+    await fsp.rename(tmp, PATHS.eventsFile);
+    console.log(`[events] rotated ${lines.length} -> ${EVENTS_KEEP_LINES} 行`);
+  } catch {
+    /* 不存在 / 读写失败,忽略 */
+  }
+}
+
+function refreshContext(): void {
+  const entries = [...roster.getMap().values()].map((r) => ({
+    sessionId: r.sessionId,
+    cwd: r.cwd,
+  }));
+  void ctxTracker
+    .refresh(entries)
+    .then(scheduleBroadcast)
+    .catch(() => {});
+}
+
 async function main(): Promise<void> {
   ptyMgr.discover(); // 重新发现上次遗留的 tmux 会话并接管
   await tailer.start();
   roster.start();
+  refreshContext();
+  setInterval(refreshContext, CONTEXT_POLL_MS);
+  setInterval(() => void rotateEvents(), EVENTS_ROTATE_MS);
   server.listen(PORT, HOST, () => {
     console.log(
       `[cc-window] http://${HOST}:${PORT}  (dev: http://${HOST}:5173)  backend=${ptyMgr.useTmux ? "tmux" : "direct"}`,

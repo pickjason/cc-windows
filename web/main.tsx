@@ -58,6 +58,8 @@ function App() {
       } else if (m.t === "launched") {
         openTerminal(m.sessionId);
         setShowNew(false);
+      } else if (m.t === "term_exit") {
+        closeTerminal(m.sessionId); // 会话结束 → 自动关掉其面板
       }
     });
     const offS = client.onStatus(setConnected);

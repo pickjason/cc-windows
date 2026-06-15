@@ -16,6 +16,7 @@ export type ClientMsg =
   | { t: "term_input"; sessionId: string; data: string }
   | { t: "term_resize"; sessionId: string; cols: number; rows: number }
   | { t: "switch_model"; sessionId: string; model: string }
+  | { t: "kill"; sessionId: string }
   | { t: "launch"; cwd: string; model: string; name?: string };
 
 /** 单一共享 WebSocket 连接,带自动重连与发送队列。看板与所有终端面板共用。 */

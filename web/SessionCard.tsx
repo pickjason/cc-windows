@@ -24,6 +24,11 @@ function humanizeAge(ms: number): string {
   return `${Math.round(h / 24)}d`;
 }
 
+function fmtTokens(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`;
+  return String(n);
+}
+
 export function SessionCard({
   s,
   now,
@@ -73,6 +78,11 @@ export function SessionCard({
       </div>
       <div className="card-bottom">
         {s.lastTool && <span className="tool">⚙ {s.lastTool}</span>}
+        {s.ctxTokens != null && (
+          <span className="ctx-mini" title={`上下文约 ${s.ctxTokens} tokens`}>
+            ctx ~{fmtTokens(s.ctxTokens)}
+          </span>
+        )}
         <span className="age">{age}</span>
         <span className="sid">{s.sessionId.slice(0, 8)}</span>
       </div>
