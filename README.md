@@ -1,5 +1,12 @@
 # cc-window
 
+![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white&style=flat-square)
+![React](https://img.shields.io/badge/React-18-149ECA?logo=react&logoColor=white&style=flat-square)
+![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white&style=flat-square)
+![Node.js](https://img.shields.io/badge/Node.js-25.2.1-339933?logo=node.js&logoColor=white&style=flat-square)
+![Claude Code](https://img.shields.io/badge/Claude%20Code-2.1.177-D97757?style=flat-square)
+![local-only](https://img.shields.io/badge/local--only-127.0.0.1%3A4317-2563EB?style=flat-square)
+
 > 本地网页版 Claude Code **多会话管理台**:在浏览器里新建会话(选目录、选模型)、直接操作每个会话的交互式终端,同时一屏实时监控全机所有 Claude Code 会话的工作状态。
 
 不再为每个项目手动开一个终端窗口——所有会话集中到一个网页里看、开、切。
