@@ -16,11 +16,6 @@ body {
   font-size:13px; line-height:1.45; -webkit-font-smoothing:antialiased;
   overflow:hidden;
 }
-body.cc-scanlines::after {
-  content:""; position:fixed; inset:0; pointer-events:none; z-index:9998;
-  background:repeating-linear-gradient(to bottom, rgba(255,255,255,.014) 0 1px, transparent 1px 3px);
-  mix-blend-mode:overlay;
-}
 ::-webkit-scrollbar { width:9px; height:9px; }
 ::-webkit-scrollbar-thumb { background:var(--line-2); border-radius:6px; }
 ::-webkit-scrollbar-track { background:transparent; }
@@ -119,7 +114,8 @@ select.cc-input { cursor:pointer; }
 
 /* ── Dock ── */
 .cc-dock { position:relative; z-index:160; flex:0 0 auto; background:var(--panel); border-top:1px solid var(--line-2);
-  display:flex; flex-direction:column; min-height:0; box-shadow:0 -16px 40px -22px rgba(0,0,0,.7); }
+  display:flex; flex-direction:column; min-height:0; min-width:0; overflow:hidden;
+  box-shadow:0 -16px 40px -22px rgba(0,0,0,.7); }
 .cc-resize { position:absolute; top:-3px; left:0; right:0; height:7px; cursor:ns-resize; z-index:5; }
 .cc-resize:hover { background:linear-gradient(180deg, var(--accent), transparent); opacity:.5; }
 .cc-tabs { display:flex; align-items:center; gap:2px; padding:5px 8px 0; border-bottom:1px solid var(--line); flex:0 0 auto; overflow-x:auto; }
@@ -132,23 +128,25 @@ select.cc-input { cursor:pointer; }
 .cc-tab-x:hover { color:#ef4444; }
 
 .cc-tools { display:flex; align-items:center; gap:10px; padding:8px 12px; border-bottom:1px solid var(--line);
-  background:var(--bg-1); flex:0 0 auto; overflow-x:auto; }
+  background:var(--bg-1); flex:0 0 auto; min-width:0; overflow-x:auto; }
 .cc-ctx { display:flex; align-items:center; gap:7px; font-size:11px; color:var(--fg-2); white-space:nowrap; }
 .cc-ctx-bar { width:60px; height:5px; background:var(--line); border-radius:3px; overflow:hidden; }
 .cc-ctx-fill { height:100%; border-radius:3px; transition:width .4s; }
-.cc-attach { display:flex; align-items:center; gap:6px; background:var(--bg-0); border:1px solid var(--line);
-  border-radius:5px; padding:4px 8px; cursor:pointer; color:var(--fg-2); font-size:11px; white-space:nowrap; }
+.cc-attach { display:flex; align-items:center; gap:6px; min-width:0; max-width:min(360px, 42vw); flex:0 1 360px;
+  background:var(--bg-0); border:1px solid var(--line); border-radius:5px; padding:4px 8px; cursor:pointer;
+  color:var(--fg-2); font-size:11px; white-space:nowrap; }
 .cc-attach:hover { border-color:var(--accent); }
+.cc-attach code { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .cc-attach .cc-copy { color:var(--accent); font-size:11px; }
-.cc-cwd { font-size:11px; color:var(--fg-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:240px; }
+.cc-cwd { min-width:0; flex:0 1 220px; font-size:11px; color:var(--fg-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:240px; }
 
-.cc-panes { flex:1; min-height:0; display:flex; }
-.cc-pane { flex:1; min-height:0; display:flex; flex-direction:column; position:relative; }
+.cc-panes { flex:1; min-height:0; min-width:0; display:flex; overflow:hidden; }
+.cc-pane { flex:1 1 0; min-height:0; min-width:0; max-width:100%; display:flex; flex-direction:column; position:relative; overflow:hidden; }
 .cc-ro-banner { position:absolute; top:8px; right:12px; z-index:6; background:color-mix(in oklab, var(--accent) 16%, var(--bg-0));
   border:1px solid var(--accent); color:var(--accent); font-size:11px; padding:3px 9px; border-radius:4px; pointer-events:none; }
-.cc-term { flex:1; min-height:0; overflow:hidden; padding:8px 10px; background:var(--bg-0); }
+.cc-term { flex:1; min-height:0; min-width:0; max-width:100%; overflow:hidden; padding:8px 10px; background:var(--bg-0); }
 /* xterm.js 填满 .cc-term(真实终端正文,替代设计稿的假终端) */
-.cc-term .xterm { width:100%; height:100%; }
+.cc-term .xterm { width:100%; max-width:100%; height:100%; }
 .cc-term .xterm-viewport { background:transparent !important; }
 
 @keyframes ccPulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.4; transform:scale(.82); } }

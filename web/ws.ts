@@ -6,6 +6,7 @@ export type ServerMsg =
   | { t: "roster"; sessions: SessionView[] }
   | { t: "status_update"; session: SessionView }
   | { t: "term_output"; sessionId: string; data: string }
+  | { t: "term_history"; sessionId: string; data: string }
   | { t: "term_exit"; sessionId: string; code: number; signal?: number }
   | { t: "term_mode"; sessionId: string; mode: "interactive" | "readonly" }
   | { t: "term_snapshot"; sessionId: string; data: string }

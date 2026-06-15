@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import { spawn } from "node-pty";
 import type { IPty } from "node-pty";
 import { TMUX_SOCKET, TMUX_SESSION_PREFIX, TERM_FLUSH_MS } from "./config.js";
+import { cancelCopyModeArgs, isPaneInCopyMode } from "./tmux-copy-mode.js";
 
 export interface SpawnOpts {
   cwd: string;
@@ -76,6 +77,8 @@ const MONITOR_MS = 1000;
 const SNAPSHOT_MS = 500;
 /** 点「打开终端」后,等外部终端出现的兜底超时:超时仍无外部则回退 interactive。 */
 const PENDING_TIMEOUT_MS = 15_000;
+/** 打开网页终端时注入最近 tmux 历史,供 xterm 本地滚动。 */
+const HISTORY_CAPTURE_LINES = 5000;
 
 /**
  * 管理由本工具启动的交互式 claude 会话。
@@ -121,14 +124,14 @@ export class PtyManager extends EventEmitter {
 
   /**
    * 给本工具的 tmux socket 设全局选项(幂等;无 server 时静默失败,下次建会话再设)。
-   * `mouse on`:claude 渲染在普通缓冲(非 alt-screen),滚轮进入 copy-mode 滚动**对话历史**;
-   * 键盘 ↑/↓ 仍直达 claude 切**输入历史**。否则 tmux 占着 xterm 的 alt-screen,滚轮被转成 ↑/↓
-   * 误当输入历史。见 docs/09-ui-interaction-spec.md。
+   * `mouse on`:保留 tmux/本地终端的鼠标能力;网页端会拦截 wheel,避免误进 copy-mode。
+   * `status off`:网页 Dock 已有会话标签和状态,不再让 tmux 自己画底部状态栏。
    */
   private ensureTmuxOptions(): void {
     if (!this.useTmux) return;
     try {
       execFileSync("tmux", [...TX, "set-option", "-g", "mouse", "on"], { stdio: "ignore" });
+      execFileSync("tmux", [...TX, "set-option", "-g", "status", "off"], { stdio: "ignore" });
     } catch {
       /* 无 server / 设置失败:忽略 */
     }
@@ -273,6 +276,25 @@ export class PtyManager extends EventEmitter {
     this.write(sessionId, `/model ${model}\r`);
   }
 
+  /** 抓最近 tmux 历史 + 当前屏,用于网页端本地 scrollback 初始化。 */
+  captureHistory(sessionId: string): string | null {
+    const m = this.sessions.get(sessionId);
+    if (!m || m.backend !== "tmux" || !m.tmuxName) return null;
+    return this.capturePane(m.tmuxName, HISTORY_CAPTURE_LINES);
+  }
+
+  /** 网页 interactive 打开前,退出遗留 tmux copy-mode,避免重开面板仍显示 `[N/M]` 历史界面。 */
+  cancelCopyModeForWeb(sessionId: string): void {
+    const m = this.sessions.get(sessionId);
+    if (!m || m.backend !== "tmux" || !m.tmuxName) return;
+    if (!this.paneInCopyMode(m.tmuxName)) return;
+    try {
+      execFileSync("tmux", cancelCopyModeArgs(TX, m.tmuxName), { stdio: "ignore" });
+    } catch {
+      /* tmux pane 已退出/不在 copy-mode:忽略 */
+    }
+  }
+
   /** 显式删除会话(用户主动关闭):tmux 后端会真正 kill-session。 */
   kill(sessionId: string): void {
     const m = this.sessions.get(sessionId);
@@ -368,15 +390,31 @@ export class PtyManager extends EventEmitter {
     }
   }
 
-  private capturePane(tmuxName: string): string | null {
+  private capturePane(tmuxName: string, historyLines = 0): string | null {
+    const args = [...TX, "capture-pane", "-p", "-e"];
+    if (historyLines > 0) args.push("-S", `-${historyLines}`);
+    args.push("-t", tmuxName);
     try {
-      return execFileSync("tmux", [...TX, "capture-pane", "-p", "-e", "-t", tmuxName], {
+      return execFileSync("tmux", args, {
         encoding: "utf8",
         maxBuffer: 4 * 1024 * 1024,
         stdio: ["ignore", "pipe", "ignore"],
       });
     } catch {
       return null;
+    }
+  }
+
+  private paneInCopyMode(tmuxName: string): boolean {
+    try {
+      const out = execFileSync(
+        "tmux",
+        [...TX, "display-message", "-p", "-t", tmuxName, "#{pane_in_mode}"],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+      );
+      return isPaneInCopyMode(out);
+    } catch {
+      return false;
     }
   }
 

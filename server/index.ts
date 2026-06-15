@@ -167,7 +167,10 @@ wss.on("connection", (ws) => {
           if (ptyMgr.modeOf(sessionId) === "readonly") {
             send(ws, { t: "term_mode", sessionId, mode: "readonly" });
           } else {
+            ptyMgr.cancelCopyModeForWeb(sessionId);
             ptyMgr.ensureAttached(sessionId); // tmux 会话按需重连(重启后接管 / 重开面板)
+            const history = ptyMgr.captureHistory(sessionId);
+            if (history) send(ws, { t: "term_history", sessionId, data: history });
             send(ws, { t: "term_mode", sessionId, mode: "interactive" });
           }
         }

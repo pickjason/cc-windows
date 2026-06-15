@@ -51,6 +51,7 @@
 | `roster` | `{ sessions: SessionView[] }` | 首次 + 每次 roster 刷新(全量快照) |
 | `status_update` | `{ session: SessionView }` | 单会话状态变化(事件驱动,秒级) |
 | `term_output` | `{ sessionId, data }` | PTY 有输出(`data` 为原始终端字节串) |
+| `term_history` | `{ sessionId, data }` | interactive 终端 attach 时注入最近 tmux 历史,供网页端本地 scrollback 使用 |
 | `term_exit` | `{ sessionId, code, signal }` | PTY 退出 |
 | `term_mode` | `{ sessionId, mode: "interactive"\|"readonly" }` | 网页终端态变化(见 [08 文档](08-terminal-handoff.md)) |
 | `term_snapshot` | `{ sessionId, data }` | 只读态周期推送的整屏快照(网页清屏后写入) |
@@ -81,7 +82,8 @@
 
 ## 终端字节流约定
 
-- `term_output` / `term_input` 的 `data` 是**原始终端字节**(含 ANSI 转义),前端直接喂 `xterm.write` / 后端直接 `pty.write`,服务端不解析、不改写。
+- `term_output` / `term_history` / `term_input` 的 `data` 是**原始终端字节**(含 ANSI 转义),前端直接喂 `xterm.write` / 后端直接 `pty.write`,服务端不解析、不改写。
+- `term_history` 只用于网页端初始化本地 scrollback;后续实时输出仍走 `term_output`。
 - 大输出可能高频;前端按 `xterm` 默认缓冲即可。后端对单会话输出做轻量合并(如 16ms 节流)以降帧数(可选优化)。
 
 ## 模型清单(config)

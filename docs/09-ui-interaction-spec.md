@@ -153,6 +153,8 @@
 
 **可交互(interactive,默认)**
 - 键入 → `term_input`;容器尺寸变化(ResizeObserver/fit)→ `term_resize`;收 `term_output` → 写入终端。
+- 打开面板时收 `term_history` → 把最近 tmux 历史写入 xterm 本地 scrollback,用于鼠标回看。
+- 若目标 tmux pane 遗留在 copy-mode,网页打开 interactive 面板前会先退出 copy-mode,避免重开面板仍显示 `[N/M]` 历史界面。
 
 **只读(readonly,本地终端在驱动时)**
 - **忽略键入**(不发 `term_input`,`disableStdin`);**不发 resize**;**忽略 `term_output`**。
@@ -165,11 +167,13 @@
 - 面板由隐藏变激活:重新 fit + 聚焦(只读态仅聚焦、不 resize)。
 
 **滚动行为(tmux 后端)**
-- claude 渲染在普通缓冲(非 alt-screen),tmux pane 自带滚动历史。cc-window 在 socket 上设 `mouse on`(`server/pty.ts:ensureTmuxOptions`),于是:
-  - **鼠标滚轮** → tmux 进入 copy-mode 滚动**对话历史**(往回看输出);滚到底自动退出。
-  - **键盘 ↑/↓** → 直达 claude,切换**输入历史**(两者分工不冲突)。
-- 代价:`mouse on` 下,网页终端里**拖选文字会走 tmux copy-mode**,而非浏览器原生选区;要复制可在 copy-mode 里选,或「打开终端」用本地终端复制。
-- 注意:`set -g mouse on` 对**已 attach 的客户端**通常即时生效;个别情况需**重开面板 / 刷新页面**让 xterm 重新协商鼠标模式。新开面板自动带上。
+- 网页终端保留本地 xterm scrollback,并拦截 `wheel` 事件:滚轮只滚网页端本地历史,不发给 tmux、不进入 copy-mode。
+- 打开面板时会从 tmux 注入最近一段历史作为本地 scrollback,所以鼠标可以直接回看最近输出;后续实时输出继续追加到本地 scrollback。
+- 这样鼠标可以正常回看,同时避免滚轮误触后看到 tmux copy-mode 分隔线 / 状态标记(`[N/M]`)导致画面像“条纹”。
+- 关闭网页面板不会改变 tmux 会话;若此前已通过其它入口进入 copy-mode,下次网页 interactive 打开时会自动收敛退出。
+- 新输出到达时,若当前视图本来在底部则自动跟随到底;若用户已经滚上去看历史,不强制拉回底部。
+- **键盘 ↑/↓** 仍直达 claude,切换**输入历史**。
+- 需要查看超过网页本地保留范围的 tmux 历史或使用 tmux copy-mode 时,点「打开终端」在本地 Terminal 里接管该会话。
 
 ---
 
@@ -211,6 +215,7 @@
 | `roster {sessions}` | **全量替换**会话列表(当前主推送方式) |
 | `status_update {session}` | 单会话增量更新(协议已定义/前端已处理;服务端当前以 `roster` 全量推送为主) |
 | `term_output {sessionId,data}` | 写入对应面板(只读态忽略) |
+| `term_history {sessionId,data}` | interactive 面板打开时初始化 xterm 本地 scrollback |
 | `term_snapshot {sessionId,data}` | 只读态整屏镜像重绘 |
 | `term_mode {sessionId,mode}` | 切换该会话面板的 interactive/readonly 呈现 + Dock 工具态 |
 | `term_exit {sessionId,code}` | 面板内提示已退出;`main` 自动关闭该面板 |
