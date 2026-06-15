@@ -25,6 +25,7 @@ export function NewSession({
   const [cwd, setCwd] = useState(initialCwd);
   const [model, setModel] = useState(models[0]?.value ?? "opus");
   const [name, setName] = useState("");
+  const [skipPermissions, setSkipPermissions] = useState(false);
 
   useEffect(() => {
     fetch("/api/recent-dirs")
@@ -39,7 +40,13 @@ export function NewSession({
   function launch(): void {
     const dir = cwd.trim();
     if (!dir) return;
-    client.send({ t: "launch", cwd: dir, model, name: name.trim() || undefined });
+    client.send({
+      t: "launch",
+      cwd: dir,
+      model,
+      name: name.trim() || undefined,
+      skipPermissions,
+    });
     onClose();
   }
 
@@ -98,6 +105,20 @@ export function NewSession({
             placeholder="默认用目录名"
             onKeyDown={(e) => e.key === "Enter" && launch()}
           />
+        </label>
+
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            checked={skipPermissions}
+            onChange={(e) => setSkipPermissions(e.target.checked)}
+          />
+          <span>
+            跳过授权
+            <span className="checkbox-hint">
+              免去全部权限确认(--dangerously-skip-permissions);该会话可不经询问改文件、跑命令,请仅对可信目录使用。
+            </span>
+          </span>
         </label>
 
         <div className="modal-actions">

@@ -119,6 +119,18 @@ ptyMgr.on("exit", (sessionId: string, code: number, signal?: number) => {
   subs.delete(sessionId);
   scheduleBroadcast();
 });
+// 终端态变化(interactive⇄readonly)→ 通知该会话的订阅者(见 docs/08)
+ptyMgr.on("mode", (sessionId: string, mode: "interactive" | "readonly") => {
+  const set = subs.get(sessionId);
+  if (set) for (const ws of set) send(ws, { t: "term_mode", sessionId, mode });
+});
+// 只读态整屏快照 → 路由给订阅者
+ptyMgr.on("snapshot", (sessionId: string, data: string) => {
+  const set = subs.get(sessionId);
+  if (set) for (const ws of set) send(ws, { t: "term_snapshot", sessionId, data });
+});
+// 只读镜像仅在有网页订阅时才抓 capture-pane(省 CPU)
+ptyMgr.setViewerCheck((id) => (subs.get(id)?.size ?? 0) > 0);
 
 function attach(ws: WebSocket, sessionId: string): void {
   let set = subs.get(sessionId);
@@ -148,23 +160,45 @@ wss.on("connection", (ws) => {
     switch (msg.t) {
       case "attach":
         if (sessionId) {
-          ptyMgr.ensureAttached(sessionId); // tmux 会话按需重连(重启后接管 / 重开面板)
           attach(ws, sessionId);
+          // 只读态(本地终端在驱动)不可再 attach 自己(会变双客户端);只告知态,靠 snapshot 镜像
+          if (ptyMgr.modeOf(sessionId) === "readonly") {
+            send(ws, { t: "term_mode", sessionId, mode: "readonly" });
+          } else {
+            ptyMgr.ensureAttached(sessionId); // tmux 会话按需重连(重启后接管 / 重开面板)
+            send(ws, { t: "term_mode", sessionId, mode: "interactive" });
+          }
         }
         break;
       case "detach":
         if (sessionId) detach(ws, sessionId);
         break;
       case "term_input":
-        if (sessionId && typeof msg.data === "string") ptyMgr.write(sessionId, msg.data);
+        // 只读态忽略键入(本地终端在驱动)
+        if (sessionId && typeof msg.data === "string" && ptyMgr.modeOf(sessionId) === "interactive")
+          ptyMgr.write(sessionId, msg.data);
         break;
       case "term_resize":
-        if (sessionId && typeof msg.cols === "number" && typeof msg.rows === "number")
+        if (
+          sessionId &&
+          typeof msg.cols === "number" &&
+          typeof msg.rows === "number" &&
+          ptyMgr.modeOf(sessionId) === "interactive"
+        )
           ptyMgr.resize(sessionId, msg.cols, msg.rows);
         break;
       case "switch_model":
-        if (sessionId && typeof msg.model === "string")
+        if (
+          sessionId &&
+          typeof msg.model === "string" &&
+          ptyMgr.modeOf(sessionId) === "interactive"
+        )
           ptyMgr.switchModel(sessionId, msg.model);
+        break;
+      case "open_terminal":
+        // 在本机 Terminal.app 打开并 attach;失败(非 mac / osascript 出错)告知前端降级为复制命令
+        if (sessionId && !ptyMgr.openLocalTerminal(sessionId))
+          send(ws, { t: "error", sessionId, message: "无法自动打开本地终端,请复制命令手动 attach" });
         break;
       case "kill":
         if (sessionId) {
@@ -177,7 +211,8 @@ wss.on("connection", (ws) => {
         if (!cwd) break;
         const model = typeof msg.model === "string" && msg.model ? msg.model : DEFAULT_MODEL;
         const name = typeof msg.name === "string" && msg.name ? msg.name : path.basename(cwd);
-        const out = ptyMgr.launch({ cwd, model, name });
+        const skipPermissions = msg.skipPermissions === true;
+        const out = ptyMgr.launch({ cwd, model, name, skipPermissions });
         attach(ws, out.sessionId); // 启动者自动订阅其输出
         send(ws, { t: "launched", sessionId: out.sessionId, name: out.name, cwd, model });
         scheduleBroadcast();
@@ -226,6 +261,7 @@ function refreshContext(): void {
 
 async function main(): Promise<void> {
   ptyMgr.discover(); // 重新发现上次遗留的 tmux 会话并接管
+  ptyMgr.startMonitor(); // 客户端数监视 + 只读镜像(网页⇄本地终端交接,见 docs/08)
   await tailer.start();
   roster.start();
   refreshContext();

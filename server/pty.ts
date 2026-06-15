@@ -11,12 +11,17 @@ export interface SpawnOpts {
   name: string;
   cols?: number;
   rows?: number;
+  /** 启动时加 --dangerously-skip-permissions:跳过所有权限确认(YOLO,慎用)。 */
+  skipPermissions?: boolean;
 }
 
 export interface ManagedMeta {
   sessionId: string;
   tmuxTarget?: string;
 }
+
+/** 网页终端态:见 docs/08-terminal-handoff.md。 */
+export type TermMode = "interactive" | "readonly";
 
 interface Managed {
   sessionId: string;
@@ -28,6 +33,10 @@ interface Managed {
   pty: IPty | null; // tmux 后端可为 null(已 detach,按需重连)
   buf: string; // 输出节流缓冲
   flushTimer: NodeJS.Timeout | null;
+  /** 网页终端态:interactive=本端 attach 双向;readonly=本端已断开、靠 capture-pane 镜像(本地终端在驱动)。 */
+  mode: TermMode;
+  /** 点「打开终端」后等待外部客户端出现的起点(ms);null=非等待中。超时未见外部则回退 interactive。 */
+  pendingSince: number | null;
 }
 
 /**
@@ -61,6 +70,13 @@ function tmuxAvailable(): boolean {
 
 const TX = ["-L", TMUX_SOCKET];
 
+/** 客户端数监视:~1s 一轮 list-clients,驱动 interactive⇄readonly 自动切换。 */
+const MONITOR_MS = 1000;
+/** 只读态镜像:~500ms 一轮 capture-pane 推快照。 */
+const SNAPSHOT_MS = 500;
+/** 点「打开终端」后,等外部终端出现的兜底超时:超时仍无外部则回退 interactive。 */
+const PENDING_TIMEOUT_MS = 15_000;
+
 /**
  * 管理由本工具启动的交互式 claude 会话。
  * - tmux 后端(默认,若装了 tmux):用 `tmux -L ccwindow` 拉起 detached 会话,node-pty attach 桥接。
@@ -73,9 +89,23 @@ const TX = ["-L", TMUX_SOCKET];
 export class PtyManager extends EventEmitter {
   private sessions = new Map<string, Managed>();
   readonly useTmux = tmuxAvailable();
+  private monitorTimer: NodeJS.Timeout | null = null;
+  private snapshotTimer: NodeJS.Timeout | null = null;
+  /** 「该会话有没有网页在看」判定(由 index 注入 subs 检查);用于只读镜像省 CPU。 */
+  private viewerCheck: (sessionId: string) => boolean = () => true;
 
   managedIds(): Set<string> {
     return new Set(this.sessions.keys());
+  }
+
+  /** 注入「有没有网页订阅者」判定(只读镜像仅在有人看时才抓 capture-pane)。 */
+  setViewerCheck(fn: (sessionId: string) => boolean): void {
+    this.viewerCheck = fn;
+  }
+
+  /** 当前网页终端态(外部/未知会话默认 interactive)。 */
+  modeOf(sessionId: string): TermMode {
+    return this.sessions.get(sessionId)?.mode ?? "interactive";
   }
 
   managedMeta(): ManagedMeta[] {
@@ -95,10 +125,12 @@ export class PtyManager extends EventEmitter {
     const cols = opts.cols ?? 80;
     const rows = opts.rows ?? 24;
 
+    const skipFlag = opts.skipPermissions ? " --dangerously-skip-permissions" : "";
+
     if (this.useTmux) {
       const tmuxName = `${TMUX_SESSION_PREFIX}${sessionId}`;
       const cmd =
-        `claude --model ${shq(opts.model)} --session-id ${shq(sessionId)} -n ${shq(opts.name)}`;
+        `claude --model ${shq(opts.model)} --session-id ${shq(sessionId)} -n ${shq(opts.name)}${skipFlag}`;
       execFileSync(
         "tmux",
         [...TX, "new-session", "-d", "-s", tmuxName, "-x", "200", "-y", "50", "-c", opts.cwd, cmd],
@@ -114,6 +146,8 @@ export class PtyManager extends EventEmitter {
         pty: null,
         buf: "",
         flushTimer: null,
+        mode: "interactive",
+        pendingSince: null,
       };
       this.sessions.set(sessionId, m);
       this.ensureAttached(sessionId, cols, rows);
@@ -121,7 +155,9 @@ export class PtyManager extends EventEmitter {
     }
 
     // 直连降级
-    const p = spawn("claude", ["--model", opts.model, "--session-id", sessionId, "-n", opts.name], {
+    const args = ["--model", opts.model, "--session-id", sessionId, "-n", opts.name];
+    if (opts.skipPermissions) args.push("--dangerously-skip-permissions");
+    const p = spawn("claude", args, {
       name: "xterm-color",
       cols,
       rows,
@@ -137,6 +173,8 @@ export class PtyManager extends EventEmitter {
       pty: p,
       buf: "",
       flushTimer: null,
+      mode: "interactive",
+      pendingSince: null,
     };
     this.sessions.set(sessionId, m);
     this.wire(m);
@@ -241,12 +279,137 @@ export class PtyManager extends EventEmitter {
 
   /** 服务关闭:只 detach(tmux 会话保活),直连会话无法保活只能随之结束。 */
   shutdown(): void {
+    if (this.monitorTimer) clearInterval(this.monitorTimer);
+    if (this.snapshotTimer) clearInterval(this.snapshotTimer);
+    this.monitorTimer = this.snapshotTimer = null;
     for (const m of this.sessions.values()) {
       try {
         m.pty?.kill(); // tmux: 仅断开 attach 客户端,会话继续;direct: 进程结束
       } catch {
         /* ignore */
       }
+    }
+  }
+
+  // ── 网页 ⇄ 本地终端交接(见 docs/08-terminal-handoff.md)──────────────
+
+  /** 启动客户端数监视 + 只读镜像两个轮询(tmux 后端才有意义)。 */
+  startMonitor(): void {
+    if (!this.useTmux || this.monitorTimer) return;
+    this.monitorTimer = setInterval(() => this.monitorClients(), MONITOR_MS);
+    this.snapshotTimer = setInterval(() => this.pushSnapshots(), SNAPSHOT_MS);
+  }
+
+  /** 某 tmux 会话当前 attach 的客户端数;查询失败返回 -1(本轮跳过)。 */
+  private clientCount(tmuxName: string): number {
+    try {
+      const out = execFileSync("tmux", [...TX, "list-clients", "-t", tmuxName, "-F", "x"], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+      return out.split("\n").filter((l) => l.length > 0).length;
+    } catch {
+      return -1;
+    }
+  }
+
+  /**
+   * 每轮:按「我自己应有几个客户端(ours)」与实际 list-clients 数 n 比对。
+   *  - interactive:n > ours ⇒ 冒出外部终端 ⇒ 断开自己转 readonly
+   *  - readonly:外部归零(已确认出现过 / pending 超时)⇒ 重新 attach 转 interactive
+   */
+  private monitorClients(): void {
+    const now = Date.now();
+    for (const m of this.sessions.values()) {
+      if (m.backend !== "tmux" || !m.tmuxName) continue;
+      const n = this.clientCount(m.tmuxName);
+      if (n < 0) continue; // 查询失败:保持原态
+      if (m.mode === "interactive") {
+        const ours = m.pty ? 1 : 0;
+        if (n > ours) this.enterReadonly(m); // 有别人 attach 进来了
+      } else {
+        // readonly:本端无 attach,n 即外部终端数
+        if (n >= 1) {
+          m.pendingSince = null; // 外部已确认出现
+        } else {
+          // n === 0
+          if (m.pendingSince == null) this.exitReadonly(m); // 外部曾在、现已走 → 收回
+          else if (now - m.pendingSince > PENDING_TIMEOUT_MS) this.exitReadonly(m); // 终端没起来,兜底回退
+          // 否则:pending 中且未超时,继续等外部 attach
+        }
+      }
+    }
+  }
+
+  /** 只读态镜像:有网页在看时,周期把 capture-pane 整屏快照推给前端。 */
+  private pushSnapshots(): void {
+    for (const m of this.sessions.values()) {
+      if (m.mode !== "readonly" || m.backend !== "tmux" || !m.tmuxName) continue;
+      if (!this.viewerCheck(m.sessionId)) continue;
+      const snap = this.capturePane(m.tmuxName);
+      if (snap != null) this.emit("snapshot", m.sessionId, snap);
+    }
+  }
+
+  private capturePane(tmuxName: string): string | null {
+    try {
+      return execFileSync("tmux", [...TX, "capture-pane", "-p", "-e", "-t", tmuxName], {
+        encoding: "utf8",
+        maxBuffer: 4 * 1024 * 1024,
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  /** 转只读:断开本端 attach(tmux 会话存活),广播 mode 变化。 */
+  private enterReadonly(m: Managed): void {
+    if (m.mode === "readonly") return;
+    if (m.flushTimer) {
+      clearTimeout(m.flushTimer);
+      m.flushTimer = null;
+    }
+    try {
+      m.pty?.kill(); // 仅断开 attach 客户端;wire 的 onExit 见 tmux 仍在会保留条目
+    } catch {
+      /* 已退出 */
+    }
+    m.pty = null;
+    m.mode = "readonly";
+    this.emit("mode", m.sessionId, "readonly");
+  }
+
+  /** 收回交互:转 interactive;若有网页在看则重新 attach 恢复实时双向。 */
+  private exitReadonly(m: Managed): void {
+    if (m.mode === "interactive") return;
+    m.mode = "interactive";
+    m.pendingSince = null;
+    this.emit("mode", m.sessionId, "interactive");
+    if (this.viewerCheck(m.sessionId)) this.ensureAttached(m.sessionId);
+  }
+
+  /**
+   * 在本机 Terminal.app 打开并 attach 该会话;同时本端立即转只读(等外部终端接管)。
+   * 仅 macOS;其它平台返回 false(前端降级为复制 attach 命令)。
+   */
+  openLocalTerminal(sessionId: string): boolean {
+    const m = this.sessions.get(sessionId);
+    if (!m || m.backend !== "tmux" || !m.tmuxName) return false;
+    if (process.platform !== "darwin") return false;
+    this.enterReadonly(m); // 先断自己,避免与即将 attach 的终端短暂双客户端
+    m.pendingSince = Date.now();
+    const attachCmd = `tmux -L ${TMUX_SOCKET} attach -t ${m.tmuxName}`;
+    try {
+      execFileSync("osascript", [
+        "-e",
+        `tell application "Terminal" to do script ${JSON.stringify(attachCmd)}`,
+        "-e",
+        `tell application "Terminal" to activate`,
+      ]);
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -278,6 +441,8 @@ export class PtyManager extends EventEmitter {
         pty: null, // 按需(客户端 attach 时)重连
         buf: "",
         flushTimer: null,
+        mode: "interactive",
+        pendingSince: null,
       });
     }
   }

@@ -7,7 +7,10 @@ export type ServerMsg =
   | { t: "status_update"; session: SessionView }
   | { t: "term_output"; sessionId: string; data: string }
   | { t: "term_exit"; sessionId: string; code: number; signal?: number }
-  | { t: "launched"; sessionId: string; name: string; cwd: string; model: string };
+  | { t: "term_mode"; sessionId: string; mode: "interactive" | "readonly" }
+  | { t: "term_snapshot"; sessionId: string; data: string }
+  | { t: "launched"; sessionId: string; name: string; cwd: string; model: string }
+  | { t: "error"; sessionId?: string; message: string };
 
 /** 客户端 → 服务端。 */
 export type ClientMsg =
@@ -17,7 +20,8 @@ export type ClientMsg =
   | { t: "term_resize"; sessionId: string; cols: number; rows: number }
   | { t: "switch_model"; sessionId: string; model: string }
   | { t: "kill"; sessionId: string }
-  | { t: "launch"; cwd: string; model: string; name?: string };
+  | { t: "open_terminal"; sessionId: string }
+  | { t: "launch"; cwd: string; model: string; name?: string; skipPermissions?: boolean };
 
 /** 单一共享 WebSocket 连接,带自动重连与发送队列。看板与所有终端面板共用。 */
 export class WsClient {

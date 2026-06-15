@@ -52,8 +52,10 @@
 | `status_update` | `{ session: SessionView }` | 单会话状态变化(事件驱动,秒级) |
 | `term_output` | `{ sessionId, data }` | PTY 有输出(`data` 为原始终端字节串) |
 | `term_exit` | `{ sessionId, code, signal }` | PTY 退出 |
+| `term_mode` | `{ sessionId, mode: "interactive"\|"readonly" }` | 网页终端态变化(见 [08 文档](08-terminal-handoff.md)) |
+| `term_snapshot` | `{ sessionId, data }` | 只读态周期推送的整屏快照(网页清屏后写入) |
 | `launched` | `{ sessionId, name, cwd, model }` | 新会话已启动(对应某个 POST) |
-| `error` | `{ message, sessionId? }` | 出错 |
+| `error` | `{ message, sessionId? }` | 出错(如本地终端打开失败) |
 
 ### 客户端 → 服务端
 
@@ -64,8 +66,11 @@
 | `detach` | `{ sessionId }` | 取消订阅(关闭面板) |
 | `term_input` | `{ sessionId, data }` | 写入 PTY(用户键入) |
 | `term_resize` | `{ sessionId, cols, rows }` | `pty.resize` |
-| `switch_model` | `{ sessionId, model }` | 向 PTY 写 `/model <model>\r` |
+| `switch_model` | `{ sessionId, model }` | 向 PTY 写 `/model <model>\r`(仅 interactive 态生效) |
+| `open_terminal` | `{ sessionId }` | 在本机 Terminal 打开并 attach;本端转只读(见 [08 文档](08-terminal-handoff.md)) |
 | `launch` | `{ cwd, model, name? }` | 等价于 `POST /api/sessions`(WS 内便捷入口) |
+
+> `term_input` / `term_resize` / `switch_model` 在 `readonly` 态被服务端忽略(此时本地终端在驱动)。
 
 ### 帧示例
 ```json

@@ -34,6 +34,17 @@ export function TerminalDock({
   const [confirmKill, setConfirmKill] = useState<string | null>(null);
   useEffect(() => setConfirmKill(null), [active]); // 切 tab 时重置确认
 
+  // 跟踪各会话终端态(interactive/readonly),用于只读时禁用切模型(见 docs/08)
+  const [modes, setModes] = useState<Record<string, "interactive" | "readonly">>({});
+  useEffect(
+    () =>
+      client.onMessage((m) => {
+        if (m.t === "term_mode") setModes((p) => ({ ...p, [m.sessionId]: m.mode }));
+      }),
+    [client],
+  );
+  const readonly = active ? modes[active] === "readonly" : false;
+
   if (open.length === 0) return null;
   const view = (id: string) => sessions.find((s) => s.sessionId === id);
   const nameOf = (id: string) => view(id)?.name ?? id.slice(0, 8);
@@ -85,13 +96,26 @@ export function TerminalDock({
               </span>
             )}
             {av.tmuxTarget && (
-              <code
-                className="attach-cmd"
-                title="在本地终端运行可接管同一会话(点击复制)"
-                onClick={() => navigator.clipboard?.writeText(av.tmuxTarget!)}
-              >
-                {av.tmuxTarget}
-              </code>
+              <>
+                <button
+                  className={`btn open-term ${readonly ? "on" : ""}`}
+                  title={
+                    readonly
+                      ? "本地终端驱动中,网页只读;关闭本地终端后自动恢复"
+                      : "在本机 Terminal 打开并接管该会话;打开后网页转为只读"
+                  }
+                  onClick={() => active && client.send({ t: "open_terminal", sessionId: active })}
+                >
+                  {readonly ? "🔒 本地终端中" : "打开终端"}
+                </button>
+                <code
+                  className="attach-cmd"
+                  title="在本地终端运行可接管同一会话(点击复制)"
+                  onClick={() => navigator.clipboard?.writeText(av.tmuxTarget!)}
+                >
+                  {av.tmuxTarget}
+                </code>
+              </>
             )}
             <span className="dock-cwd" title={av.cwd}>
               {av.cwd}
@@ -99,6 +123,8 @@ export function TerminalDock({
             <select
               className="model-switch"
               value=""
+              disabled={readonly}
+              title={readonly ? "只读态不可切模型(在本地终端操作)" : undefined}
               onChange={(e) => {
                 if (e.target.value && active)
                   client.send({ t: "switch_model", sessionId: active, model: e.target.value });
