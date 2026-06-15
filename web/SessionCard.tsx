@@ -98,10 +98,27 @@ export function SessionCard({
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
-            marginBottom: 5,
+            marginBottom: 4,
           }}
         >
           {s.name}
+        </div>
+      )}
+
+      {/* last human prompt — 终端风 ❯ 提示符,区分同目录多会话 */}
+      {s.lastPrompt && (
+        <div
+          title={s.lastPrompt}
+          style={{
+            fontSize: 11,
+            color: "var(--fg-2)",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            marginBottom: 2,
+          }}
+        >
+          <span style={{ color: "var(--accent)" }}>❯</span> {s.lastPrompt}
         </div>
       )}
 
