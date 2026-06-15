@@ -24,8 +24,10 @@ const RANK: Record<SessionStatus, number> = {
 export interface StatusEngineOpts {
   /** 由本工具(PtyManager)管理、可在网页操作的会话元信息(含 tmux attach 命令)。 */
   managed?: () => ManagedMeta[];
-  /** 上下文占用查询(来自 ContextTracker)。 */
-  context?: (sessionId: string) => { ctxTokens: number; ctxPct: number } | undefined;
+  /** 上下文占用 + 最近输入查询(来自 ContextTracker)。 */
+  context?: (
+    sessionId: string,
+  ) => { ctxTokens?: number; ctxPct?: number; lastPrompt?: string } | undefined;
 }
 
 /**
@@ -63,6 +65,8 @@ export class StatusEngine {
         tmuxTarget: mm?.tmuxTarget,
         ctxTokens: ctx?.ctxTokens,
         ctxPct: ctx?.ctxPct,
+        bypassPermissions: r.bypass,
+        lastPrompt: ctx?.lastPrompt,
       });
     }
     views.sort(

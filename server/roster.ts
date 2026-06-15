@@ -18,6 +18,9 @@ const pexec = promisify(execFile);
  */
 const INTERNAL_WORKER_RE = /--bg-spare\b|--bg-pty-host\b/;
 
+/** 会话进程命令行里带此标志 = 以「跳过所有授权」(YOLO)运行,卡片上需醒目标注。 */
+const BYPASS_RE = /--dangerously-skip-permissions\b/;
+
 /**
  * 源 A:周期性执行 `claude agents --json`,维护 sessionId -> RosterEntry 名册。
  * 见 docs/02-claude-code-observability.md(面 1)。
@@ -30,8 +33,8 @@ export class RosterPoller extends EventEmitter {
   private current = new Map<string, RosterEntry>();
   private timer: NodeJS.Timeout | null = null;
   private polling = false;
-  /** pid -> 是否为内部 daemon worker。按 pid 缓存,稳态下不再重复 ps。 */
-  private internalByPid = new Map<number, boolean>();
+  /** pid -> 进程派生信息(是否内部 daemon worker / 是否跳过授权)。按 pid 缓存,稳态下不再重复 ps。 */
+  private metaByPid = new Map<number, { internal: boolean; bypass: boolean }>();
 
   getMap(): Map<string, RosterEntry> {
     return this.current;
@@ -63,7 +66,9 @@ export class RosterPoller extends EventEmitter {
       await this.classify(entries.map((e) => e.pid));
       const next = new Map<string, RosterEntry>();
       for (const e of entries) {
-        if (this.internalByPid.get(e.pid) === true) continue; // 跳过内部 daemon worker
+        const meta = this.metaByPid.get(e.pid);
+        if (meta?.internal === true) continue; // 跳过内部 daemon worker
+        e.bypass = meta?.bypass ?? false; // 派生:命令行是否带 --dangerously-skip-permissions
         next.set(e.sessionId, e);
       }
       this.pruneCache(entries.map((e) => e.pid));
@@ -82,7 +87,7 @@ export class RosterPoller extends EventEmitter {
    * 宁可短暂多显示一张卡,也绝不因 ps 抖动误杀真实会话。
    */
   private async classify(pids: number[]): Promise<void> {
-    const unknown = pids.filter((p) => typeof p === "number" && !this.internalByPid.has(p));
+    const unknown = pids.filter((p) => typeof p === "number" && !this.metaByPid.has(p));
     if (unknown.length === 0) return;
     let snap: Map<number, { ppid: number; cmd: string }>;
     try {
@@ -93,21 +98,21 @@ export class RosterPoller extends EventEmitter {
     for (const pid of unknown) {
       const self = snap.get(pid);
       if (!self) {
-        this.internalByPid.set(pid, false); // 进程已不在(快照晚于名册);当作真实会话,下轮 roster 自然清掉
+        this.metaByPid.set(pid, { internal: false, bypass: false }); // 进程已不在(快照晚于名册);当作真实会话,下轮 roster 自然清掉
         continue;
       }
       const parent = snap.get(self.ppid);
       const internal =
         INTERNAL_WORKER_RE.test(self.cmd) || (!!parent && INTERNAL_WORKER_RE.test(parent.cmd));
-      this.internalByPid.set(pid, internal);
+      this.metaByPid.set(pid, { internal, bypass: BYPASS_RE.test(self.cmd) });
     }
   }
 
   /** 清掉已不在名册的 pid 分类缓存(进程退出后 pid 可能被复用)。 */
   private pruneCache(livePids: number[]): void {
     const live = new Set(livePids);
-    for (const pid of this.internalByPid.keys()) {
-      if (!live.has(pid)) this.internalByPid.delete(pid);
+    for (const pid of this.metaByPid.keys()) {
+      if (!live.has(pid)) this.metaByPid.delete(pid);
     }
   }
 }

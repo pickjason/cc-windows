@@ -119,6 +119,21 @@ export class PtyManager extends EventEmitter {
     return this.sessions.has(sessionId);
   }
 
+  /**
+   * 给本工具的 tmux socket 设全局选项(幂等;无 server 时静默失败,下次建会话再设)。
+   * `mouse on`:claude 渲染在普通缓冲(非 alt-screen),滚轮进入 copy-mode 滚动**对话历史**;
+   * 键盘 ↑/↓ 仍直达 claude 切**输入历史**。否则 tmux 占着 xterm 的 alt-screen,滚轮被转成 ↑/↓
+   * 误当输入历史。见 docs/09-ui-interaction-spec.md。
+   */
+  private ensureTmuxOptions(): void {
+    if (!this.useTmux) return;
+    try {
+      execFileSync("tmux", [...TX, "set-option", "-g", "mouse", "on"], { stdio: "ignore" });
+    } catch {
+      /* 无 server / 设置失败:忽略 */
+    }
+  }
+
   /** 启动会话,返回分配的 sessionId。 */
   launch(opts: SpawnOpts): { sessionId: string; name: string } {
     const sessionId = randomUUID();
@@ -136,6 +151,7 @@ export class PtyManager extends EventEmitter {
         [...TX, "new-session", "-d", "-s", tmuxName, "-x", "200", "-y", "50", "-c", opts.cwd, cmd],
         { env: cleanEnv() },
       );
+      this.ensureTmuxOptions(); // 首个 new-session 启动 server 后即可设 mouse on
       const m: Managed = {
         sessionId,
         name: opts.name,
@@ -296,6 +312,7 @@ export class PtyManager extends EventEmitter {
   /** 启动客户端数监视 + 只读镜像两个轮询(tmux 后端才有意义)。 */
   startMonitor(): void {
     if (!this.useTmux || this.monitorTimer) return;
+    this.ensureTmuxOptions(); // 接管已有会话时也确保 mouse on
     this.monitorTimer = setInterval(() => this.monitorClients(), MONITOR_MS);
     this.snapshotTimer = setInterval(() => this.pushSnapshots(), SNAPSHOT_MS);
   }

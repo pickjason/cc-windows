@@ -9,6 +9,8 @@ export interface RosterEntry {
   kind: "interactive" | "background";
   startedAt: number; // epoch ms
   status: RosterStatus;
+  /** 派生(非 agents --json 原字段):进程命令行是否带 --dangerously-skip-permissions,由 RosterPoller 用 ps 填。 */
+  bypass?: boolean;
   // 仅后台会话:
   id?: string;
   name?: string;
@@ -63,4 +65,8 @@ export interface SessionView {
   /** 近似上下文占用(来自 transcript 最新 assistant usage):token 数与百分比(分母为常见窗口,标"约")。 */
   ctxTokens?: number;
   ctxPct?: number;
+  /** 该会话以 --dangerously-skip-permissions(跳过所有授权,YOLO)运行。 */
+  bypassPermissions?: boolean;
+  /** 最近一条真人输入(单行、已截断):同目录多个会话时用作区分副标题。 */
+  lastPrompt?: string;
 }
