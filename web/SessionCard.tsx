@@ -1,90 +1,130 @@
-import type { SessionView, SessionStatus } from "../server/types";
+import type { CSSProperties } from "react";
+import type { SessionView } from "../server/types";
+import { STATUS, fmtAge, fmtTokens } from "./ui-data";
 
-interface StatusMeta {
-  label: string;
-  color: string;
-}
-export const STATUS_META: Record<SessionStatus, StatusMeta> = {
-  WAITING_PERMISSION: { label: "等授权", color: "#ef4444" },
-  WAITING_INPUT: { label: "等输入", color: "#f59e0b" },
-  WORKING: { label: "干活中", color: "#3b82f6" },
-  DONE: { label: "刚完成", color: "#22c55e" },
-  IDLE: { label: "空闲", color: "#6b7280" },
-  ERROR: { label: "错误", color: "#dc2626" },
-  CLOSED: { label: "关闭", color: "#374151" },
-};
-
-function humanizeAge(ms: number): string {
-  const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 60) return `${s}s`;
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m}m`;
-  const h = Math.round(m / 60);
-  if (h < 48) return `${h}h`;
-  return `${Math.round(h / 24)}d`;
-}
-
-function fmtTokens(n: number): string {
-  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`;
-  return String(n);
-}
-
+// 单张会话卡片。点击行为按 managedByUs 分支(见 docs/09 §5)。
+// 视觉严格按设计交接 SessionCard.jsx:密度 compact、状态点荧光 glow 常开。
 export function SessionCard({
   s,
-  now,
+  nowMs,
   isOpen,
-  onOpen,
-  onMonitorClick,
+  onClick,
 }: {
   s: SessionView;
-  now: number;
-  isOpen?: boolean;
-  /** 本台会话:打开终端 */
-  onOpen?: () => void;
-  /** 外部会话:打开「新建会话」并预填该目录 */
-  onMonitorClick?: () => void;
+  nowMs: number;
+  isOpen: boolean;
+  onClick: (s: SessionView) => void;
 }) {
-  const meta = STATUS_META[s.status];
-  const age = humanizeAge(now - s.lastActivityTs);
-  const pulsing = s.status === "WORKING";
-  const handleClick = s.managedByUs ? onOpen : onMonitorClick;
+  const st = STATUS[s.status];
+  const managed = s.managedByUs;
+
+  const dot: CSSProperties = {
+    width: 7,
+    height: 7,
+    borderRadius: "50%",
+    background: st.color,
+    flex: "0 0 auto",
+    boxShadow: `0 0 7px ${st.color}, 0 0 2px ${st.color}`,
+    animation: st.pulse ? "ccPulse 1.15s ease-in-out infinite" : "none",
+  };
+
   return (
     <div
-      className={`card${handleClick ? " clickable" : ""}${isOpen ? " open" : ""}`}
-      style={{ borderLeftColor: meta.color }}
-      onClick={handleClick}
+      className="cc-card"
       title={
-        s.managedByUs
-          ? "点击打开终端"
-          : "外部会话:仅监控(无法操作)。点击可在同目录新建一个可操作会话"
+        managed
+          ? "点击打开终端 · " + s.cwd
+          : "外部会话:仅监控。点击可在同目录新建一个可操作会话 · " + s.cwd
       }
+      onClick={() => onClick(s)}
+      style={{
+        borderLeft: `2px solid ${st.color}`,
+        padding: "9px 11px",
+        cursor: "pointer",
+        outline: isOpen ? "1px solid var(--accent)" : "1px solid transparent",
+        outlineOffset: -1,
+        boxShadow: isOpen ? "0 0 0 1px var(--accent), 0 0 14px -4px var(--accent)" : "none",
+      }}
     >
-      <div className="card-top">
-        <span className={`dot${pulsing ? " pulse" : ""}`} style={{ background: meta.color }} />
-        <span className="status" style={{ color: meta.color }}>
-          {meta.label}
+      {/* top row */}
+      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
+        <span style={dot} />
+        <span style={{ color: st.color, fontWeight: 600, fontSize: 11.5, letterSpacing: ".02em" }}>
+          {st.label}
         </span>
-        <span className={`kind kind-${s.kind}`}>
-          {s.kind === "background" ? "bg" : "ix"}
+        <span className="cc-badge" style={{ color: s.kind === "interactive" ? "var(--fg-2)" : "var(--fg-3)" }}>
+          {s.kind === "interactive" ? "ix" : "bg"}
         </span>
-        {s.managedByUs ? (
-          <span className="managed">本台</span>
-        ) : (
-          <span className="monitor-only">仅监控</span>
-        )}
-      </div>
-      <div className="project" title={s.cwd}>
-        {s.projectName}
-      </div>
-      <div className="card-bottom">
-        {s.lastTool && <span className="tool">⚙ {s.lastTool}</span>}
-        {s.ctxTokens != null && (
-          <span className="ctx-mini" title={`上下文约 ${s.ctxTokens} tokens`}>
-            ctx ~{fmtTokens(s.ctxTokens)}
+        {s.bypassPermissions && (
+          <span
+            className="cc-badge cc-badge-warn"
+            title="以 --dangerously-skip-permissions 运行(免确认改文件/跑命令)"
+          >
+            ⚠ 跳过授权
           </span>
         )}
-        <span className="age">{age}</span>
-        <span className="sid">{s.sessionId.slice(0, 8)}</span>
+        <span style={{ flex: 1 }} />
+        <span
+          className="cc-badge"
+          style={{
+            color: managed ? "#34d399" : "var(--fg-3)",
+            borderColor: managed ? "rgba(52,211,153,.35)" : "var(--line)",
+          }}
+        >
+          {managed ? "本台" : "仅监控"}
+        </span>
+      </div>
+
+      {/* title = projectName */}
+      <div
+        title={s.cwd}
+        style={{
+          fontSize: 14,
+          fontWeight: 600,
+          color: "var(--fg-0)",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          marginBottom: 3,
+        }}
+      >
+        {s.projectName}
+      </div>
+      {s.name && s.name !== s.projectName && (
+        <div
+          style={{
+            fontSize: 11,
+            color: "var(--fg-2)",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            marginBottom: 5,
+          }}
+        >
+          {s.name}
+        </div>
+      )}
+
+      {/* bottom row */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginTop: 5,
+          fontSize: 10.5,
+          color: "var(--fg-3)",
+        }}
+      >
+        {s.lastTool && (
+          <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 110 }}>
+            ⚙ {s.lastTool}
+          </span>
+        )}
+        {s.ctxTokens != null && <span style={{ whiteSpace: "nowrap" }}>ctx ~{fmtTokens(s.ctxTokens)}</span>}
+        <span style={{ flex: 1 }} />
+        <span title="最近活动" style={{ color: "var(--fg-2)" }}>{fmtAge(s.lastActivityTs, nowMs)}</span>
+        <span style={{ color: "var(--fg-4)", letterSpacing: ".02em" }}>{s.sessionId.slice(0, 8)}</span>
       </div>
     </div>
   );

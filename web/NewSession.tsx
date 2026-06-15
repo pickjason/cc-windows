@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { KeyboardEvent } from "react";
 import type { WsClient } from "./ws";
 
 interface ModelOption {
@@ -10,6 +11,8 @@ interface RecentDir {
   lastSessionAt: number;
 }
 
+// 新建会话模态。入参契约:cwd / model / name / skipPermissions(见 docs/09 §6)。
+// 视觉严格按设计交接 NewSession.jsx。
 export function NewSession({
   client,
   models,
@@ -25,7 +28,9 @@ export function NewSession({
   const [cwd, setCwd] = useState(initialCwd);
   const [model, setModel] = useState(models[0]?.value ?? "opus");
   const [name, setName] = useState("");
-  const [skipPermissions, setSkipPermissions] = useState(false);
+  const [skip, setSkip] = useState(false);
+  const external = !!initialCwd;
+  const canLaunch = cwd.trim().length > 0;
 
   useEffect(() => {
     fetch("/api/recent-dirs")
@@ -38,95 +43,98 @@ export function NewSession({
   }, [models]);
 
   function launch(): void {
-    const dir = cwd.trim();
-    if (!dir) return;
-    client.send({
-      t: "launch",
-      cwd: dir,
-      model,
-      name: name.trim() || undefined,
-      skipPermissions,
-    });
+    if (!canLaunch) return;
+    client.send({ t: "launch", cwd: cwd.trim(), model, name: name.trim() || undefined, skipPermissions: skip });
     onClose();
   }
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Enter") launch();
+  };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>新建会话</h3>
-        {initialCwd && (
-          <p className="modal-hint">
-            外部会话只能监控、无法直接操作。已为你预填该目录,在此新建一个<b>可操作</b>的会话。
-          </p>
+    <div className="cc-modal-bg" onClick={onClose}>
+      <div className="cc-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-modal-head">
+          <span>＋ 新建会话</span>
+          <button className="cc-x" onClick={onClose} title="关闭">
+            ×
+          </button>
+        </div>
+
+        {external && (
+          <div className="cc-note">
+            外部会话只能监控、无法在网页操作。已为你预填该目录,在此新建一个<b> 本台 </b>可操作会话。
+          </div>
         )}
 
-        <label>
-          工作目录
+        <label className="cc-field">
+          <span className="cc-label">
+            工作目录 <em>必填</em>
+          </span>
           <input
-            list="recent-dirs"
+            className="cc-input"
+            list="cc-dirs"
             value={cwd}
-            onChange={(e) => setCwd(e.target.value)}
-            placeholder="/Users/wang/IdeaProjects/…"
             autoFocus
-            onKeyDown={(e) => e.key === "Enter" && launch()}
+            placeholder="/path/to/project"
+            onChange={(e) => setCwd(e.target.value)}
+            onKeyDown={onKey}
           />
-          <datalist id="recent-dirs">
+          <datalist id="cc-dirs">
             {recents.map((d) => (
               <option key={d.path} value={d.path} />
             ))}
           </datalist>
-        </label>
-        {recents.length > 0 && (
-          <div className="chips">
-            {recents.slice(0, 6).map((d) => (
-              <button key={d.path} className="chip" onClick={() => setCwd(d.path)} title={d.path}>
-                {d.path.split("/").pop() || d.path}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <label>
-          模型
-          <select value={model} onChange={(e) => setModel(e.target.value)}>
-            {models.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
+          {recents.length > 0 && (
+            <div className="cc-chips">
+              {recents.slice(0, 6).map((d) => (
+                <button key={d.path} className="cc-chip" onClick={() => setCwd(d.path)} title={d.path}>
+                  {d.path.split("/").filter(Boolean).pop() || d.path}
+                </button>
+              ))}
+            </div>
+          )}
         </label>
 
-        <label>
-          名称(可选)
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="默认用目录名"
-            onKeyDown={(e) => e.key === "Enter" && launch()}
-          />
-        </label>
-
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            checked={skipPermissions}
-            onChange={(e) => setSkipPermissions(e.target.checked)}
-          />
-          <span>
-            跳过授权
-            <span className="checkbox-hint">
-              免去全部权限确认(--dangerously-skip-permissions);该会话可不经询问改文件、跑命令,请仅对可信目录使用。
+        <div className="cc-row2">
+          <label className="cc-field">
+            <span className="cc-label">模型</span>
+            <select className="cc-input" value={model} onChange={(e) => setModel(e.target.value)}>
+              {models.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="cc-field">
+            <span className="cc-label">
+              名称 <em>可选</em>
             </span>
+            <input
+              className="cc-input"
+              value={name}
+              placeholder="空则用目录名"
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={onKey}
+            />
+          </label>
+        </div>
+
+        <label className={"cc-skip " + (skip ? "armed" : "")}>
+          <input type="checkbox" checked={skip} onChange={(e) => setSkip(e.target.checked)} />
+          <span>
+            <b>跳过授权</b> <code>--dangerously-skip-permissions</code>
+            <i>免确认改文件 / 跑命令,高风险,仅在可信目录使用。</i>
           </span>
         </label>
 
-        <div className="modal-actions">
-          <button className="btn ghost" onClick={onClose}>
+        <div className="cc-modal-foot">
+          <button className="cc-btn" onClick={onClose}>
             取消
           </button>
-          <button className="btn primary" onClick={launch} disabled={!cwd.trim()}>
-            启动
+          <button className="cc-btn cc-btn-primary" disabled={!canLaunch} onClick={launch}>
+            启动 ▸
           </button>
         </div>
       </div>
