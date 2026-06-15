@@ -3,7 +3,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white&style=flat-square)
 ![React](https://img.shields.io/badge/React-18-149ECA?logo=react&logoColor=white&style=flat-square)
 ![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white&style=flat-square)
-![Node.js](https://img.shields.io/badge/Node.js->=20-339933?logo=node.js&logoColor=white&style=flat-square)
+![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white&style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-22c55e?style=flat-square)
 ![local-only](https://img.shields.io/badge/local--only-127.0.0.1%3A4317-2563EB?style=flat-square)
 
