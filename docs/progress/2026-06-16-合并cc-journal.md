@@ -1,6 +1,6 @@
 ---
 日期: 2026-06-16
-状态: 0.2.0 git 已推(`e428217` + tag `v0.2.0`,已 push origin);npm publish 交用户自行执行;随后 0.2.1 补「网页终端拖选/复制」修复(非本次工作)
+状态: 收工。0.2.0 已合并入库(git `ad27a7f` 功能 + `e428217` 发版 + tag `v0.2.0`,均 push origin);npm publish + GitHub release 交用户手动;随后用户出 0.2.1(终端拖选修复,`0e141f4`+`c406d31`+tag `v0.2.1`,已推)
 关联: docs/11-merge-cc-journal / CHANGELOG.md / commits `ad27a7f`(功能)+ `e428217`(发版元数据) / tag `v0.2.0`
 ---
 
@@ -88,3 +88,19 @@ README 中英双语:新增「Analyze / 看用量」功能项 + 「Usage analytic
 - `web/journal/*`(`JournalView` / `EChart` / `charts` / `DayReport` / `util` / `i18n`)/ `web/main.tsx` / `web/Board.tsx` / `web/styles.css`
 - `docs/01-overview.md` / `docs/07-milestones.md` / `CLAUDE.md` / `AGENTS.md`
 - `README.md` / `README.zh-CN.md` / `docs/assets/journal.png` / `CHANGELOG.md` / `package.json`
+
+## 收尾(收工记录)
+
+发布全部落地,只剩 npm + GitHub release 两步交用户手动:
+
+| 项 | 状态 |
+|---|---|
+| 功能代码 | `ad27a7f`,已推 |
+| 发版元数据(README 中英双语 + 截图 + CHANGELOG + 版本 0.2.0)| `e428217`,已推 |
+| 本复盘日志(+本收尾)| `db08bad` 起,已推 |
+| tag `v0.2.0` / `v0.2.1` | 均已推 origin |
+| README 截图 | 取自 cc-journal 仓库 `docs/screenshot.png` → `docs/assets/journal.png`(独立版 branding,内容/布局一致)|
+| **npm publish** | ⏳ 用户自行(`npm publish`,prepublishOnly 自动 build;登录 `nakamasa`)|
+| **GitHub release** | ⏳ 用户网页创建——本机**未装 `gh`、无 token**,无法 CLI 创建;v0.2.1 描述已给,链接 `releases/new?tag=v0.2.1` |
+
+提交链:`ad27a7f`(功能)→ `e428217`(0.2.0 发版)→ `0e141f4`+`c406d31`(用户 0.2.1)→ `db08bad`(日志)。`main` 与 `origin/main` 同步。
