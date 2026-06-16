@@ -7,6 +7,7 @@ import { TMUX_SOCKET, TMUX_SESSION_PREFIX, TERM_FLUSH_MS } from "./config.js";
 import { cancelCopyModeArgs, isPaneInCopyMode } from "./tmux-copy-mode.js";
 import { initialModeForDiscoveredSession, shouldUseReadonlyForWebAttach } from "./tmux-handoff.js";
 import { parsePaneSize } from "./tmux-pane-size.js";
+import { shouldApplyPtyResize, type PtySize } from "./pty-resize.js";
 
 export interface SpawnOpts {
   cwd: string;
@@ -40,6 +41,7 @@ interface Managed {
   backend: "tmux" | "direct";
   tmuxName?: string;
   pty: IPty | null; // tmux 后端可为 null(已 detach,按需重连)
+  size: PtySize | null;
   buf: string; // 输出节流缓冲
   flushTimer: NodeJS.Timeout | null;
   /** 网页终端态:interactive=本端 attach 双向;readonly=本端已断开、靠 capture-pane 镜像(本地终端在驱动)。 */
@@ -181,6 +183,7 @@ export class PtyManager extends EventEmitter {
         backend: "tmux",
         tmuxName,
         pty: null,
+        size: null,
         buf: "",
         flushTimer: null,
         mode: "interactive",
@@ -208,6 +211,7 @@ export class PtyManager extends EventEmitter {
       model: opts.model,
       backend: "direct",
       pty: p,
+      size: { cols, rows },
       buf: "",
       flushTimer: null,
       mode: "interactive",
@@ -219,17 +223,22 @@ export class PtyManager extends EventEmitter {
   }
 
   /** tmux 后端:确保有一个 attach 客户端 PTY(按需重连,供重启后接管 / 重新打开面板)。 */
-  ensureAttached(sessionId: string, cols = 80, rows = 24): void {
+  ensureAttached(sessionId: string, cols?: number, rows?: number): void {
     const m = this.sessions.get(sessionId);
     if (!m || m.backend !== "tmux" || m.pty || !m.tmuxName) return;
+    const attachSize = {
+      cols: cols ?? m.size?.cols ?? 80,
+      rows: rows ?? m.size?.rows ?? 24,
+    };
     const p = spawn("tmux", [...TX, "attach-session", "-t", m.tmuxName], {
       name: "xterm-color",
-      cols,
-      rows,
+      cols: attachSize.cols,
+      rows: attachSize.rows,
       cwd: m.cwd || undefined,
       env: cleanEnv(),
     });
     m.pty = p;
+    m.size = attachSize;
     this.wire(m);
   }
 
@@ -286,8 +295,14 @@ export class PtyManager extends EventEmitter {
   resize(sessionId: string, cols: number, rows: number): void {
     const m = this.sessions.get(sessionId);
     if (!m || cols <= 0 || rows <= 0) return;
-    if (!m.pty) this.ensureAttached(sessionId, cols, rows);
-    m.pty?.resize(cols, rows);
+    const next = { cols, rows };
+    if (!m.pty) {
+      this.ensureAttached(sessionId, cols, rows);
+      return;
+    }
+    if (!shouldApplyPtyResize(m.size, next)) return;
+    m.pty.resize(cols, rows);
+    m.size = next;
   }
 
   switchModel(sessionId: string, model: string): void {
@@ -397,7 +412,10 @@ export class PtyManager extends EventEmitter {
       if (m.mode !== "readonly" || m.backend !== "tmux" || !m.tmuxName) continue;
       if (!this.viewerCheck(m.sessionId)) continue;
       const snap = this.capturePane(m.tmuxName);
-      if (snap != null) this.emit("snapshot", m.sessionId, snap.data, snap.cols, snap.rows);
+      if (snap != null) {
+        m.size = { cols: snap.cols, rows: snap.rows };
+        this.emit("snapshot", m.sessionId, snap.data, snap.cols, snap.rows);
+      }
     }
   }
 
@@ -518,6 +536,7 @@ export class PtyManager extends EventEmitter {
         backend: "tmux",
         tmuxName,
         pty: null, // 按需(客户端 attach 时)重连
+        size: this.paneSize(tmuxName),
         buf: "",
         flushTimer: null,
         mode,
