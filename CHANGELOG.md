@@ -2,6 +2,11 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/),记录格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [0.2.1] - 2026-06-16
+
+### 修复
+- **网页终端无法普通拖选/复制文本**:tmux 后端默认改为 `mouse off`,避免 xterm 进入 `enable-mouse-events` 后禁用普通选区;滚轮仍由网页本地 scrollback 接管,不回退到 tmux copy-mode。
+
 ## [0.2.0] - 2026-06-16
 
 ### 新增
@@ -56,6 +61,7 @@
 - **tmux 后端**(默认,装了 tmux 时):专用 socket `tmux -L ccwindow`,服务重启会话不丢;网页 ⇄ 本地终端自动交接(外部 attach 时网页转只读镜像,关闭后收回可交互)。
 - **开源就绪**:MIT 许可、`npx cc-window` 打包、中英双语 README、环境变量配置(`CC_PORT` / `PORT` / `CC_HOST` / `CC_TMUX_SOCKET`)、监控 hooks 安装器(`install-hooks`,支持 `--dry-run` / `--uninstall`)。
 
+[0.2.1]: https://github.com/pickjason/cc-windows/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/pickjason/cc-windows/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/pickjason/cc-windows/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/pickjason/cc-windows/compare/v0.1.1...v0.1.2
