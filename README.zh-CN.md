@@ -23,10 +23,24 @@ English: **[README.md](README.md)**.
 - **开** — 网页里新建会话:选目录 + 选模型,一键拉起一个真正可交互的终端。
 - **操作** — 每个会话一个 `xterm.js` 面板:打字、回答授权提示、切模型、结束会话。
 - **交接** — 点「打开终端」在本机真实终端接管该会话;网页面板自动转**只读**(本地终端在驱动),关掉本地终端后自动转回可交互。任一时刻只有一个可交互客户端,不会尺寸互抢。
+- **看用量** — 内置**历史用量统计**面板(顶栏 → 📊 统计):把本机 Claude Code 历史解析成 GitHub 风格活跃热力图、每日 token 趋势、时段分布、项目/模型排行,以及当日工作日报(可选用本机 `claude` CLI 浓缩)。100% 本地离线。*(合并自独立工具 [cc-journal](https://github.com/pickjason/cc-journal)。)*
 
 ## 核心原理(一句话)
 
 Claude Code **没有**对外的 socket / 端口 / HTTP 查询接口。cc-window 以每 ~1.5s 轮询 `claude agents --json` 为权威会话名册,叠加 hooks 写入的事件流(`~/.claude/monitor/events.jsonl`)拿到秒级状态跳变与精确等待原因,会话本身用 `node-pty` 启动并桥接到浏览器(默认走专用 `tmux` 后端)。完整设计见 [`docs/`](docs/)。
+
+## 历史用量统计
+
+![cc-window 历史用量统计](docs/assets/journal.png)
+
+点顶栏 **📊 统计** 打开统计视图。它解析 `~/.claude/projects/**/*.jsonl`(Claude Code 本就存在本机的 transcript):
+
+- GitHub 风格**活跃热力图**(指标可切:总 / 输出 tokens、会话数、指令数);
+- **每日 token 趋势**(input / output / cache 创建 / cache 读取 四桶分开,避免 cache 量级压扁其它序列);
+- **时段分布**、**项目排行**、**模型分布**;
+- **当日明细** + **工作日报**:规则版即时,或用本机 `claude` CLI 浓缩(无需 API key,走你现有订阅)。
+
+解析缓存落在 `~/.claude-journal/`,Claude Code 30 天 `cleanupPeriodDays` 清理后历史依然保留。全程不出本机。设计与统计口径见 [`docs/11`](docs/11-merge-cc-journal.md)。
 
 ## 环境要求
 
@@ -94,6 +108,7 @@ npm run install-hooks
 | [06-hooks-setup](docs/06-hooks-setup.md) | hooks logger、隐私、安装脚本 |
 | [08-terminal-handoff](docs/08-terminal-handoff.md) | 网页 ⇄ 本地终端 可交互/只读切换 |
 | [09-ui-interaction-spec](docs/09-ui-interaction-spec.md) | UI 交互/行为全规格 |
+| [11-merge-cc-journal](docs/11-merge-cc-journal.md) | 合并 cc-journal:解析栈、统计口径、前端 React 化 |
 
 ## 贡献
 

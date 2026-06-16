@@ -2,6 +2,17 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/),记录格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [0.2.0] - 2026-06-16
+
+### 新增
+- **历史用量统计视图**(看板顶栏「📊 统计」):合并自独立工具 cc-journal。解析 `~/.claude/projects/**/*.jsonl` 历史记录,呈现 GitHub 风格活跃热力图、每日 token 趋势(input/output/cache 四桶分开)、时段分布、项目/模型排行、当日明细,以及工作日报(规则版即时,或用本机 `claude` CLI 浓缩,无需 API key)。
+  - 后端 `server/journal/`:`scanner`/`parser`/`cache`(增量解析 + `~/.claude-journal/` 缓存)→ `aggregate`(四桶 token 分离 + `message.id+requestId` 去重 + 跨文件去重 + 子代理归并)→ `service`(15s 节流 + LLM 日报 inflight 去重/落盘缓存);express 挂 `GET /api/journal/stats|summary`,零新增运行时依赖。
+  - 前端 `web/journal/`:React + ECharts 五块图,按需注册 + **整个视图懒加载**(echarts 只在打开统计时拉,不拖累看板首屏)。
+  - 数据沿用 `~/.claude-journal/`,老 cc-journal 用户解析历史无缝继承;Claude Code 30 天清理后历史仍保留。
+
+### 文档
+- 新增 `docs/11-merge-cc-journal.md`(合并设计权威);`docs/01`/`07`、`CLAUDE.md`/`AGENTS.md`、README 中英双语同步收口。
+
 ## [0.1.3] - 2026-06-15
 
 ### 修复
@@ -45,6 +56,7 @@
 - **tmux 后端**(默认,装了 tmux 时):专用 socket `tmux -L ccwindow`,服务重启会话不丢;网页 ⇄ 本地终端自动交接(外部 attach 时网页转只读镜像,关闭后收回可交互)。
 - **开源就绪**:MIT 许可、`npx cc-window` 打包、中英双语 README、环境变量配置(`CC_PORT` / `PORT` / `CC_HOST` / `CC_TMUX_SOCKET`)、监控 hooks 安装器(`install-hooks`,支持 `--dry-run` / `--uninstall`)。
 
+[0.2.0]: https://github.com/pickjason/cc-windows/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/pickjason/cc-windows/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/pickjason/cc-windows/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/pickjason/cc-windows/compare/v0.1.0...v0.1.1

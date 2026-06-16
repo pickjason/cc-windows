@@ -23,10 +23,24 @@ When you run several Claude Code sessions across projects, you end up juggling a
 - **Spawn** — create a session from the browser: pick a directory + model, one click launches a real interactive terminal.
 - **Operate** — each session gets an `xterm.js` panel; type, answer permission prompts, switch model, end the session.
 - **Hand off** — click *Open Terminal* to attach the session in your real local terminal; the web panel automatically goes read-only while the terminal drives, and back to interactive when you close it. (Always exactly one interactive client — no resize fights.)
+- **Analyze** — a built-in **usage dashboard** (header → 📊 统计): parse your local Claude Code history into a GitHub-style activity heatmap, daily token trend, hourly distribution, per-project / per-model breakdowns, and a daily work report (optionally condensed by your local `claude` CLI). 100% offline. *(Merged from the standalone [cc-journal](https://github.com/pickjason/cc-journal) project.)*
 
 ## How it works (one line)
 
 Claude Code has **no socket / port / HTTP query interface**. cc-window polls `claude agents --json` every ~1.5 s as the authoritative session roster, overlays a hooks-written event stream (`~/.claude/monitor/events.jsonl`) for sub-second state transitions and the precise wait reason, and starts/bridges sessions to the browser via `node-pty` (over a dedicated `tmux` backend by default). Full design in [`docs/`](docs/).
+
+## Usage analytics
+
+![cc-window usage analytics](docs/assets/journal.png)
+
+Click **📊 统计 / Stats** in the header to open the analytics view. It parses `~/.claude/projects/**/*.jsonl` (the transcripts Claude Code already keeps on your machine) into:
+
+- a GitHub-style **activity heatmap** (switchable metric: total / output tokens, sessions, prompts);
+- **daily token trend** (input / output / cache-write / cache-read kept as four separate buckets, so cache volume doesn't crush the others);
+- **hourly distribution**, **top projects**, and **model split**;
+- a **per-day detail** with the day's sessions and a **work report** — rule-based instantly, or condensed via your local `claude` CLI (no API key, runs on your existing subscription).
+
+The parse cache lives in `~/.claude-journal/`, so history is retained even after Claude Code's 30-day `cleanupPeriodDays` cleanup. Nothing leaves your machine. Design + token-accounting rules: [`docs/11`](docs/11-merge-cc-journal.md).
 
 ## Requirements
 
@@ -96,6 +110,7 @@ Environment variables (all optional):
 | [06-hooks-setup](docs/06-hooks-setup.md) | Hooks logger, privacy, install script |
 | [08-terminal-handoff](docs/08-terminal-handoff.md) | Web ⇄ local-terminal interactive/read-only switching |
 | [09-ui-interaction-spec](docs/09-ui-interaction-spec.md) | Full UI interaction/behavior contract |
+| [11-merge-cc-journal](docs/11-merge-cc-journal.md) | Merging cc-journal: parser stack, token accounting, React analytics view |
 
 ## Contributing
 
