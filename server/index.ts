@@ -22,6 +22,7 @@ import { StatusEngine } from "./status.js";
 import { PtyManager } from "./pty.js";
 import { ContextTracker } from "./transcript.js";
 import { recentDirs } from "./recent-dirs.js";
+import { getStats, getSummary } from "./journal/service.js";
 
 // ── 状态引擎(M2)+ PTY 管理(M4)──────────────────────────────
 const roster = new RosterPoller();
@@ -57,6 +58,32 @@ app.get("/api/sessions", (_req, res) => res.json(engine.computeViews(Date.now())
 app.get("/api/models", (_req, res) => res.json(MODELS));
 app.get("/api/recent-dirs", async (_req, res) => {
   res.json(await recentDirs(roster));
+});
+
+// ── 历史用量统计(journal,见 docs/11)──────────────────────────
+// 首次访问触发全量解析(几秒),之后 15s 内复用缓存。统计是拉取式,不走 WS。
+app.get("/api/journal/stats", async (req, res) => {
+  try {
+    res.json(await getStats(req.query.refresh === "1"));
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+app.get("/api/journal/summary", async (req, res) => {
+  try {
+    const q = req.query;
+    const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+    const { status, body } = await getSummary({
+      date: str(q.date),
+      llm: q.llm === "1",
+      force: q.force === "1",
+      model: str(q.model),
+      lang: str(q.lang),
+    });
+    res.status(status).json(body);
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
 });
 
 // 新建会话:校验目录 → 启动交互式 claude(PTY)→ 返回 sessionId

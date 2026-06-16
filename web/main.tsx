@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
@@ -7,6 +7,10 @@ import { WsClient } from "./ws";
 import { Board } from "./Board";
 import { NewSession } from "./NewSession";
 import { TerminalDock } from "./TerminalDock";
+// 统计视图按需加载:echarts(~700KB)只在打开「统计」时才拉,看板首屏不受拖累。
+const JournalView = lazy(() =>
+  import("./journal/JournalView").then((m) => ({ default: m.JournalView })),
+);
 
 interface ModelOption {
   value: string;
@@ -27,6 +31,7 @@ function App() {
   const [modes, setModes] = useState<Record<string, "interactive" | "readonly">>({});
   const [showNew, setShowNew] = useState(false);
   const [newCwd, setNewCwd] = useState(""); // 「新建会话」预填目录
+  const [view, setView] = useState<"board" | "journal">("board");
 
   function openNew(cwd = ""): void {
     setNewCwd(cwd);
@@ -88,24 +93,33 @@ function App() {
 
   return (
     <div className="cc-app">
-      <Board
-        sessions={sessions}
-        nowMs={nowMs}
-        connected={connected}
-        openIds={open}
-        onNew={() => openNew("")}
-        onCardClick={onCardClick}
-      />
-      <TerminalDock
-        client={client}
-        sessions={sessions}
-        openIds={open}
-        activeId={active}
-        modes={modes}
-        models={models}
-        onActivate={setActive}
-        onClosePanel={closeTerminal}
-      />
+      {/* 看板 + 终端坞:切到统计时隐藏(保留挂载,终端不断开) */}
+      <div className="cc-view" style={{ display: view === "journal" ? "none" : "flex" }}>
+        <Board
+          sessions={sessions}
+          nowMs={nowMs}
+          connected={connected}
+          openIds={open}
+          onNew={() => openNew("")}
+          onCardClick={onCardClick}
+          onShowJournal={() => setView("journal")}
+        />
+        <TerminalDock
+          client={client}
+          sessions={sessions}
+          openIds={open}
+          activeId={active}
+          modes={modes}
+          models={models}
+          onActivate={setActive}
+          onClosePanel={closeTerminal}
+        />
+      </div>
+      {view === "journal" && (
+        <Suspense fallback={<div className="jr"><div className="jr-body"><div className="jr-loading">加载统计模块…</div></div></div>}>
+          <JournalView onBack={() => setView("board")} />
+        </Suspense>
+      )}
       {showNew && (
         <NewSession client={client} models={models} initialCwd={newCwd} onClose={() => setShowNew(false)} />
       )}

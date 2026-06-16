@@ -95,3 +95,17 @@ M1 脚手架+Hooks ──► M2 后端状态引擎 ──► M3 只读看板(首
 | 网页操作交互式终端 | ✅ M5 |
 | 运行中切模型 | ✅ M5 |
 | worktree 隔离 / headless stream-json / 远程访问 | ❌ 非目标(见 [01 文档](01-overview.md)) |
+
+---
+
+## 合并 cc-journal · 历史用量统计(M1–M6 之后的新增轨道)
+
+把同作者的独立工具 cc-journal 吸收进来,看板新增「统计」视图(活跃热力图 / token 趋势 / 时段分布 / 项目·模型排行 / 当日明细 / 日报)。**设计权威与统计口径细节见 [11 文档](11-merge-cc-journal.md)**,此处只登记路线(为避免与上面的 M1–M6 撞号,用 J 前缀):
+
+| 步骤 | 产出 | 验收 |
+|---|---|---|
+| **J1 后端移植** | journal 8 个核心解析模块落 `server/journal/`(纯逻辑 `aggregate/util/types/i18n` 前后端共用);`config.ts` 加 `journalDataDir`;express 挂 `/api/journal/stats\|summary`。**无新增运行时依赖**(丢 `commander`/CLI) | typecheck 绿;`curl /api/journal/stats` 返回 totals/days/projects/models/sessions;`/api/journal/summary` 规则版与 `llm=1` 版均正常 |
+| **J2 前端 React 化** | 加 `echarts` 依赖;`web/journal/JournalView` 重写五块图 + 当日明细/日报;`web/main.tsx` 加「看板 \| 统计」切换 | 浏览器实机截图:每块图与当日明细/日报渲染正确,点某天联动 |
+| **J3 收尾** | LLM 日报错误态降级(claude 不在 PATH);i18n(默认 zh);文档收口(`CLAUDE.md`/`AGENTS.md` 增 journal 段) | 全 `*.test.ts` + `npm run typecheck` + `npm run build` 绿;截图验证 |
+
+口径原样继承,**不重造**:四桶 token 分离、`message.id+requestId` 行内去重 + 跨文件去重、子代理用量计入但不算独立会话、本地时区归天、`[journal-summary]` 自排除、`~/.claude-journal/` 缓存让历史只增不减。

@@ -158,3 +158,54 @@ select.cc-input { cursor:pointer; }
 @keyframes ccFade { from { opacity:0; } to { opacity:1; } }
 @keyframes ccPop { from { opacity:0; transform:translateY(8px) scale(.98); } to { opacity:1; transform:none; } }
 @media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
+
+/* ── 视图切换容器(看板↔统计)── */
+.cc-view { flex:1; min-height:0; display:flex; flex-direction:column; }
+
+/* ── 历史用量统计(journal,见 docs/11)── */
+.jr { flex:1; min-height:0; display:flex; flex-direction:column; background:var(--bg-1); }
+.jr-header { gap:12px; }
+.jr-ctrl { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--fg-3); white-space:nowrap; }
+.jr-body { flex:1; min-height:0; overflow:auto; padding:18px; display:flex; flex-direction:column; gap:14px; }
+.jr-loading, .jr-empty { color:var(--fg-3); text-align:center; padding:40px 0; }
+.jr-error { color:#fca5a5; text-align:center; padding:40px 0; }
+
+.jr-chips { display:flex; flex-wrap:wrap; gap:8px; }
+.jr-chips .cc-chip { cursor:default; font-size:11.5px; padding:5px 11px; }
+.jr-chips .cc-chip:hover { border-color:var(--line); color:var(--fg-2); }
+.jr-chips .cc-chip b { color:var(--fg-0); font-weight:700; margin-right:4px; font-size:13px; }
+
+.jr-panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 16px; }
+.jr-panel h2 { margin:0 0 10px; font-size:13px; color:var(--fg-1); font-weight:600; letter-spacing:.01em; }
+.jr-grid2 { display:grid; grid-template-columns:repeat(auto-fit, minmax(380px, 1fr)); gap:14px; }
+
+.jr-day-summary { color:var(--fg-2); font-size:12px; margin-bottom:12px; }
+.jr-day-summary b { color:var(--fg-0); }
+.jr-day-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+.jr-col-title { margin:0 0 8px; font-size:12px; color:var(--fg-1); font-weight:600; }
+
+.jr-report-head { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.jr-report-head h3, .jr-report h3 { margin:0; font-size:12px; color:var(--fg-1); font-weight:600; }
+.jr-report-status { font-size:10.5px; color:var(--fg-3); }
+.jr-report-box { background:var(--bg-0); border:1px solid var(--line); border-radius:6px; padding:10px 13px;
+  font-size:12px; color:var(--fg-1); max-height:440px; overflow:auto; line-height:1.5; }
+.jr-report-box h3 { font-size:13px; color:var(--fg-0); margin:10px 0 6px; }
+.jr-report-box h4 { font-size:12px; color:var(--accent); margin:10px 0 5px; }
+.jr-report-box h5 { font-size:11.5px; color:var(--fg-1); margin:8px 0 3px; }
+.jr-report-box ul { margin:4px 0; padding-left:18px; }
+.jr-report-box li { margin:2px 0; }
+.jr-report-box blockquote { margin:4px 0; padding:4px 10px; border-left:2px solid var(--line-2); color:var(--fg-2); }
+.jr-report-box hr { border:none; border-top:1px solid var(--line); margin:8px 0; }
+.jr-report-box b { color:var(--fg-0); }
+.jr-report-box p { margin:5px 0; }
+
+.jr-session { background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:9px 11px; margin-bottom:8px; }
+.jr-session-head { display:flex; align-items:center; gap:8px; margin-bottom:5px; }
+.jr-session-time { color:var(--accent); font-size:11px; white-space:nowrap; }
+.jr-session-models { color:var(--fg-4); font-size:10px; margin-left:auto; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.jr-session-title { color:var(--fg-0); font-size:12px; margin-bottom:4px; word-break:break-word; }
+.jr-session-stats { color:var(--fg-3); font-size:10.5px; }
+
+.jr-footer { color:var(--fg-4); font-size:10.5px; text-align:center; padding:6px 0 2px; }
+
+@media (max-width:860px) { .jr-day-grid { grid-template-columns:1fr; } }

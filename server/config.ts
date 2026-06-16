@@ -25,6 +25,8 @@ export const PATHS = {
   monitorDir: path.join(HOME, ".claude", "monitor"),
   /** ~/.claude/monitor/events.jsonl —— hooks 写入、服务端 tail */
   eventsFile: path.join(HOME, ".claude", "monitor", "events.jsonl"),
+  /** ~/.claude-journal —— 历史用量统计的解析缓存 + 生成的日报(承接 cc-journal,见 docs/11) */
+  journalDataDir: path.join(HOME, ".claude-journal"),
 } as const;
 
 /**

@@ -13,6 +13,7 @@ export function Board({
   openIds,
   onNew,
   onCardClick,
+  onShowJournal,
 }: {
   sessions: SessionView[];
   nowMs: number;
@@ -20,6 +21,7 @@ export function Board({
   openIds: string[];
   onNew: () => void;
   onCardClick: (s: SessionView) => void;
+  onShowJournal: () => void;
 }) {
   const sorted = sortSessions(sessions);
   const needsMe = sessions.filter((s) => NEEDS_ME.includes(s.status)).length;
@@ -54,6 +56,9 @@ export function Board({
         </div>
         <button className="cc-btn cc-btn-primary" onClick={onNew}>
           ＋ 新建会话
+        </button>
+        <button className="cc-btn" onClick={onShowJournal} title="历史用量统计">
+          📊 统计
         </button>
         <span className="cc-stat">{sessions.length} 会话</span>
         {needsMe > 0 && <span className="cc-stat cc-stat-needs">{needsMe} 待处理</span>}
