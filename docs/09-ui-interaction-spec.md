@@ -166,6 +166,7 @@
 - 面板由隐藏变激活:重新 fit + 聚焦(只读态仅聚焦、不 resize)。
 
 **滚动行为(tmux 后端)**
+- tmux 后端默认 `mouse off`:网页 xterm 必须保留普通鼠标拖选与浏览器复制能力;不要为了 tmux 鼠标操作牺牲复制。
 - 网页终端保留本地 xterm scrollback,并拦截 `wheel` 事件:滚轮只滚网页端本地历史,不发给 tmux、不进入 copy-mode。
 - 网页 scrollback 只包含该面板打开后真实收到的 `term_output`;不把 tmux `capture-pane` 历史注入 live xterm,避免破坏光标/屏幕状态同步。
 - 这样鼠标可以正常回看,同时避免滚轮误触后看到 tmux copy-mode 分隔线 / 状态标记(`[N/M]`)导致画面像“条纹”。

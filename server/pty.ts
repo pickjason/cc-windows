@@ -6,6 +6,7 @@ import type { IPty } from "node-pty";
 import { TMUX_SOCKET, TMUX_SESSION_PREFIX, TERM_FLUSH_MS } from "./config.js";
 import { cancelCopyModeArgs, isPaneInCopyMode } from "./tmux-copy-mode.js";
 import { initialModeForDiscoveredSession, shouldUseReadonlyForWebAttach } from "./tmux-handoff.js";
+import { tmuxBaseOptionArgs } from "./tmux-options.js";
 import { parsePaneSize } from "./tmux-pane-size.js";
 import { shouldApplyPtyResize, type PtySize } from "./pty-resize.js";
 
@@ -144,14 +145,15 @@ export class PtyManager extends EventEmitter {
 
   /**
    * 给本工具的 tmux socket 设全局选项(幂等;无 server 时静默失败,下次建会话再设)。
-   * `mouse on`:保留 tmux/本地终端的鼠标能力;网页端会拦截 wheel,避免误进 copy-mode。
+   * `mouse off`:网页 xterm 优先保留普通拖选/复制;滚轮由前端本地 scrollback 接管。
    * `status off`:网页 Dock 已有会话标签和状态,不再让 tmux 自己画底部状态栏。
    */
   private ensureTmuxOptions(): void {
     if (!this.useTmux) return;
     try {
-      execFileSync("tmux", [...TX, "set-option", "-g", "mouse", "on"], { stdio: "ignore" });
-      execFileSync("tmux", [...TX, "set-option", "-g", "status", "off"], { stdio: "ignore" });
+      for (const args of tmuxBaseOptionArgs(TX)) {
+        execFileSync("tmux", args, { stdio: "ignore" });
+      }
     } catch {
       /* 无 server / 设置失败:忽略 */
     }
@@ -174,7 +176,7 @@ export class PtyManager extends EventEmitter {
         [...TX, "new-session", "-d", "-s", tmuxName, "-x", "200", "-y", "50", "-c", opts.cwd, cmd],
         { env: cleanEnv() },
       );
-      this.ensureTmuxOptions(); // 首个 new-session 启动 server 后即可设 mouse on
+      this.ensureTmuxOptions(); // 首个 new-session 启动 server 后即可应用 tmux 基础选项
       const m: Managed = {
         sessionId,
         name: opts.name,
@@ -360,7 +362,7 @@ export class PtyManager extends EventEmitter {
   /** 启动客户端数监视 + 只读镜像两个轮询(tmux 后端才有意义)。 */
   startMonitor(): void {
     if (!this.useTmux || this.monitorTimer) return;
-    this.ensureTmuxOptions(); // 接管已有会话时也确保 mouse on
+    this.ensureTmuxOptions(); // 接管已有会话时也确保 tmux 基础选项一致
     this.monitorTimer = setInterval(() => this.monitorClients(), MONITOR_MS);
     this.snapshotTimer = setInterval(() => this.pushSnapshots(), SNAPSHOT_MS);
   }

@@ -115,6 +115,7 @@ tmux -L ccwindow display-message -p -t ccw_e03566ed-cb97-4556-9b80-9ab1baed046c 
 
 实现:
 - interactive 终端保留 `INTERACTIVE_SCROLLBACK_LINES=5000`;
+- tmux socket 默认 `mouse off`,让网页 xterm 恢复普通拖选/复制;网页端不再依赖 tmux mouse 处理滚动。
 - wheel 事件在 `window` capture 阶段拦截,只在当前 active 终端区域内生效;
 - wheel 转为 `term.scrollLines(...)`,滚网页端 xterm 本地历史;
 - `stripMouseWheelInput()` 过滤 SGR mouse (`\x1b[<64;...M` 等)和 X10 mouse wheel 序列,避免任何漏网滚轮再通过 `term_input` 打到 tmux;
@@ -231,6 +232,7 @@ npm run build
 
 结论:
 - resize 失控回环由 flex 链 `min-width:0` + resize 去重/RAF/夹取解决;
+- tmux mouse mode 会让 xterm 进入 `enable-mouse-events` 并禁用普通拖选;网页终端默认 `mouse off`,优先保证复制可用。
 - 鼠标滚轮改为网页本地 scrollback(仅网页打开后的真实输出),不再触发 tmux copy-mode;
 - 已经残留在 copy-mode 的 tmux pane,网页重开 interactive 面板时自动退出,避免“叉掉再打开还是横条”。
 - 不要把 `capture-pane` 历史注入 live xterm;这会破坏光标/屏幕状态同步。
