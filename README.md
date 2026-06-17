@@ -7,115 +7,113 @@
 ![License](https://img.shields.io/badge/license-MIT-22c55e?style=flat-square)
 ![local-only](https://img.shields.io/badge/local--only-127.0.0.1%3A4317-2563EB?style=flat-square)
 
-> A local web dashboard for **Claude Code**: monitor every session on your machine, spawn new ones, and drive each interactive terminal — all in one page. Listens on `127.0.0.1` only.
+> 本地网页版 **Claude Code** 多会话管理台:一屏监控全机所有会话、网页里新建会话、操作每个会话的交互式终端。仅监听 `127.0.0.1`。
 
-中文文档见 **[README.zh-CN.md](README.zh-CN.md)**.
+English: **[README.en.md](README.en.md)**.
 
-![cc-window dashboard](docs/assets/screenshot.png)
+![cc-window 看板](docs/assets/screenshot.png)
 
 ---
 
-## Why
+## 它解决什么
 
-When you run several Claude Code sessions across projects, you end up juggling a pile of terminal windows — no global view, no quick switching. cc-window collapses that into one local web page:
+多项目同时用 Claude Code,就要开一堆终端窗口——看不到全局、切换也麻烦。cc-window 把这件事收敛到一个本地网页:
 
-- **Monitor** — every session on the machine (interactive + background) in one grid, colour-coded by state: `等授权 / waiting permission`, `等输入 / waiting input`, `干活中 / working`, `空闲 / idle`.
-- **Spawn** — create a session from the browser: pick a directory + model, one click launches a real interactive terminal.
-- **Operate** — each session gets an `xterm.js` panel; type, answer permission prompts, switch model, end the session.
-- **Hand off** — click *Open Terminal* to attach the session in your real local terminal; the web panel automatically goes read-only while the terminal drives, and back to interactive when you close it. (Always exactly one interactive client — no resize fights.)
-- **Analyze** — a built-in **usage dashboard** (header → 📊 统计): parse your local Claude Code history into a GitHub-style activity heatmap, daily token trend, hourly distribution, per-project / per-model breakdowns, and a daily work report (optionally condensed by your local `claude` CLI). 100% offline. *(Merged from the standalone [cc-journal](https://github.com/pickjason/cc-journal) project.)*
+- **看** — 一屏列出全机所有会话(交互式 + 后台),彩色状态:等授权 / 等输入 / 干活中 / 空闲。
+- **开** — 网页里新建会话:选目录 + 选模型,一键拉起一个真正可交互的终端。
+- **操作** — 每个会话一个 `xterm.js` 面板:打字、回答授权提示、切模型、结束会话。
+- **交接** — 点「打开终端」在本机真实终端接管该会话;网页面板自动转**只读**(本地终端在驱动),关掉本地终端后自动转回可交互。任一时刻只有一个可交互客户端,不会尺寸互抢。
+- **看用量** — 内置**历史用量统计**面板(顶栏 → 📊 统计):把本机 Claude Code 历史解析成 GitHub 风格活跃热力图、每日 token 趋势、时段分布、项目/模型排行,以及当日工作日报(可选用本机 `claude` CLI 浓缩)。100% 本地离线。*(合并自独立工具 [cc-journal](https://github.com/pickjason/cc-journal)。)*
 
-## How it works (one line)
+## 核心原理(一句话)
 
-Claude Code has **no socket / port / HTTP query interface**. cc-window polls `claude agents --json` every ~1.5 s as the authoritative session roster, overlays a hooks-written event stream (`~/.claude/monitor/events.jsonl`) for sub-second state transitions and the precise wait reason, and starts/bridges sessions to the browser via `node-pty` (over a dedicated `tmux` backend by default). Full design in [`docs/`](docs/).
+Claude Code **没有**对外的 socket / 端口 / HTTP 查询接口。cc-window 以每 ~1.5s 轮询 `claude agents --json` 为权威会话名册,叠加 hooks 写入的事件流(`~/.claude/monitor/events.jsonl`)拿到秒级状态跳变与精确等待原因,会话本身用 `node-pty` 启动并桥接到浏览器(默认走专用 `tmux` 后端)。完整设计见 [`docs/`](docs/)。
 
-## Usage analytics
+## 历史用量统计
 
-![cc-window usage analytics](docs/assets/journal.png)
+![cc-window 历史用量统计](docs/assets/journal.png)
 
-Click **📊 统计 / Stats** in the header to open the analytics view. It parses `~/.claude/projects/**/*.jsonl` (the transcripts Claude Code already keeps on your machine) into:
+点顶栏 **📊 统计** 打开统计视图。它解析 `~/.claude/projects/**/*.jsonl`(Claude Code 本就存在本机的 transcript):
 
-- a GitHub-style **activity heatmap** (switchable metric: total / output tokens, sessions, prompts);
-- **daily token trend** (input / output / cache-write / cache-read kept as four separate buckets, so cache volume doesn't crush the others);
-- **hourly distribution**, **top projects**, and **model split**;
-- a **per-day detail** with the day's sessions and a **work report** — rule-based instantly, or condensed via your local `claude` CLI (no API key, runs on your existing subscription).
+- GitHub 风格**活跃热力图**(指标可切:总 / 输出 tokens、会话数、指令数);
+- **每日 token 趋势**(input / output / cache 创建 / cache 读取 四桶分开,避免 cache 量级压扁其它序列);
+- **时段分布**、**项目排行**、**模型分布**;
+- **当日明细** + **工作日报**:规则版即时,或用本机 `claude` CLI 浓缩(无需 API key,走你现有订阅)。
 
-The parse cache lives in `~/.claude-journal/`, so history is retained even after Claude Code's 30-day `cleanupPeriodDays` cleanup. Nothing leaves your machine. Design + token-accounting rules: [`docs/11`](docs/11-merge-cc-journal.md).
+解析缓存落在 `~/.claude-journal/`,Claude Code 30 天 `cleanupPeriodDays` 清理后历史依然保留。全程不出本机。设计与统计口径见 [`docs/11`](docs/11-merge-cc-journal.md)。
 
-## Requirements
+## 环境要求
 
-- **[Claude Code CLI](https://github.com/anthropics/claude-code)** installed and logged in (`claude` on your `PATH`).
-- **Node.js ≥ 20**.
-- **tmux** (recommended): enables the local-terminal hand-off and survives server restarts. Without it, cc-window falls back to a direct `node-pty` backend (sessions end when the server stops).
-- The one-click **Open Terminal** button uses `osascript` + Terminal.app and is **macOS-only**; on other platforms it falls back to copying the `tmux attach` command. Everything else is cross-platform.
+- **[Claude Code CLI](https://github.com/anthropics/claude-code)** 已安装并登录(`claude` 在 `PATH` 上)。
+- **Node.js ≥ 20**。
+- **tmux**(推荐):支持本地终端交接、服务重启会话不丢;没有则降级为直连 `node-pty` 后端(关服务即结束会话)。
+- 一键「打开终端」用 `osascript` + Terminal.app,**仅 macOS**;其它平台降级为复制 `tmux attach` 命令。其余功能跨平台。
 
-> ⚠️ `node-pty` is a native module. npm ships prebuilt binaries for common platforms; otherwise it compiles on install (needs a C/C++ toolchain).
+> ⚠️ `node-pty` 是原生模块,npm 自带常见平台预编译包;否则会在安装时编译(需 C/C++ 工具链)。
 
-## Quick start
+## 快速开始
 
-### Via npx (no clone)
+### npx(免克隆)
 
 ```bash
-npx cc-window                 # start the dashboard → http://127.0.0.1:4317
-npx cc-window install-hooks   # (optional) install monitoring hooks; --dry-run / --uninstall
+npx cc-window                 # 启动看板 → http://127.0.0.1:4317
+npx cc-window install-hooks   # (可选)安装监控 hooks;--dry-run 预览 / --uninstall 回滚
 ```
 
-### From source
+### 从源码
 
 ```bash
 git clone https://github.com/pickjason/cc-windows.git
 cd cc-windows
-npm run setup                 # npm install + build
+npm run setup                 # npm install + 构建
 npm start                     # → http://127.0.0.1:4317
 
-# optional: richer, sub-second status via hooks (writes ~/.claude/settings.json,
-# auto-backed up; preview with --dry-run, revert with --uninstall)
+# 可选:用 hooks 拿更精细的秒级状态(写入 ~/.claude/settings.json,自动备份;
+# 可 --dry-run 预览、--uninstall 回滚)
 npm run install-hooks
 ```
 
-Dev mode with frontend HMR: `npm run dev` (Vite on `5173`, server on `4317`).
+开发模式(前端 HMR):`npm run dev`(Vite 5173 + 服务端 4317)。
 
-## Configuration
+## 配置(环境变量,均可选)
 
-Environment variables (all optional):
-
-| Var | Default | Meaning |
+| 变量 | 默认 | 含义 |
 |---|---|---|
-| `CC_PORT` / `PORT` | `4317` | HTTP/WS port |
-| `CC_HOST` | `127.0.0.1` | Bind address |
-| `CC_TMUX_SOCKET` | `ccwindow` | Dedicated tmux socket name (`tmux -L <name>`) |
+| `CC_PORT` / `PORT` | `4317` | HTTP/WS 端口 |
+| `CC_HOST` | `127.0.0.1` | 监听地址 |
+| `CC_TMUX_SOCKET` | `ccwindow` | 专用 tmux socket 名(`tmux -L <名>`) |
 
-## Security
+## 安全
 
-- Binds to `127.0.0.1` by default — not exposed to the network. There is **no built-in auth token**; anyone who can reach the port can control your sessions.
-- **Do not** set `CC_HOST` to a non-loopback address unless you fully understand you are exposing session control to your network.
-- The monitoring logger **does not record prompt text** by default — see [`docs/06-hooks-setup.md`](docs/06-hooks-setup.md).
-- Sessions launched with **Skip permissions** (`--dangerously-skip-permissions`) run without confirmation prompts — cards flag these with a red `⚠ 跳过授权` badge. Use only in trusted directories.
+- 默认仅监听 `127.0.0.1`,不对外暴露。**无内置鉴权 token**:能访问该端口的进程都能控制你的会话。
+- **切勿**把 `CC_HOST` 设成非回环地址,除非你清楚这会把会话控制暴露到网络。
+- 监控 logger 默认**不记录 prompt 原文**,见 [`docs/06-hooks-setup.md`](docs/06-hooks-setup.md)。
+- 以**跳过授权**(`--dangerously-skip-permissions`)启动的会话不再弹权限确认,卡片用红色 `⚠ 跳过授权` 徽章标注。仅在可信目录使用。
 
-## Notes
+## 说明
 
-- **本台 / managed** cards were started by cc-window and are fully operable; **仅监控 / monitor-only** cards (sessions you opened elsewhere) can only be watched — clicking one prefills *New Session* with the same directory.
-- First launch in an **untrusted directory**: Claude shows a "trust this folder?" prompt in the terminal; press Enter there before the session registers and appears on the board.
-- **Close panel (×) ≠ End session.** Closing a tab detaches the web panel; the session keeps running. *End session* actually kills it.
+- 标 **本台** 的卡片是 cc-window 启动的,可在网页操作;**仅监控** 的(你在别处开的会话)只能看,点击会在同目录预填「新建会话」。
+- 在**未信任目录**首次启动会话,claude 会在终端弹「是否信任此文件夹」,按 Enter 确认后会话才注册、上看板。
+- **关面板(×)≠ 结束会话**:关标签只断网页面板,会话继续后台跑;「结束会话」才真正 kill。
 
-## Docs
+## 文档
 
-| Doc | Contents |
+| 文档 | 内容 |
 |---|---|
-| [01-overview](docs/01-overview.md) | Background, goals, scope, glossary |
-| [02-claude-code-observability](docs/02-claude-code-observability.md) | The verified facts about Claude Code's observable surface |
-| [03-architecture](docs/03-architecture.md) | Components, data flow, session lifecycle |
-| [04-status-model](docs/04-status-model.md) | Three-source status normalization + state machine |
-| [05-protocol](docs/05-protocol.md) | REST + WebSocket message contract |
-| [06-hooks-setup](docs/06-hooks-setup.md) | Hooks logger, privacy, install script |
-| [08-terminal-handoff](docs/08-terminal-handoff.md) | Web ⇄ local-terminal interactive/read-only switching |
-| [09-ui-interaction-spec](docs/09-ui-interaction-spec.md) | Full UI interaction/behavior contract |
-| [11-merge-cc-journal](docs/11-merge-cc-journal.md) | Merging cc-journal: parser stack, token accounting, React analytics view |
+| [01-overview](docs/01-overview.md) | 背景、目标、范围、术语 |
+| [02-claude-code-observability](docs/02-claude-code-observability.md) | Claude Code 可观测面的已核实事实(基石) |
+| [03-architecture](docs/03-architecture.md) | 组件、数据流、会话生命周期 |
+| [04-status-model](docs/04-status-model.md) | 三源状态归一 + 状态机 |
+| [05-protocol](docs/05-protocol.md) | REST + WebSocket 消息契约 |
+| [06-hooks-setup](docs/06-hooks-setup.md) | hooks logger、隐私、安装脚本 |
+| [08-terminal-handoff](docs/08-terminal-handoff.md) | 网页 ⇄ 本地终端 可交互/只读切换 |
+| [09-ui-interaction-spec](docs/09-ui-interaction-spec.md) | UI 交互/行为全规格 |
+| [11-merge-cc-journal](docs/11-merge-cc-journal.md) | 合并 cc-journal:解析栈、统计口径、前端 React 化 |
 
-## Contributing
+## 贡献
 
-Issues and PRs welcome. Before a PR: `npm run typecheck && npm run build`.
+欢迎 issue / PR。提 PR 前:`npm run typecheck && npm run build`。
 
-## License
+## 许可
 
 [MIT](LICENSE)
